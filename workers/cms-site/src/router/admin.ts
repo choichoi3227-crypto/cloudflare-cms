@@ -44,19 +44,19 @@ export async function handleAdminRoute(request: Request, env: Env, ctx: Executio
 
     try {
       switch (resource) {
-        case 'dashboard': return handleAdminDashboard(request, env);
-        case 'posts': return handleAdminPosts(request, env, id);
-        case 'pages': return handleAdminPages(request, env, id);
-        case 'categories': return handleAdminCategories(request, env, id);
-        case 'tags': return handleAdminTags(request, env, id);
-        case 'settings': return handleAdminSettings(request, env, method);
-        case 'themes': return handleAdminThemes(request, env, method, id, action);
-        case 'plugins': return handleAdminPlugins(request, env, method, id, action);
-        case 'marketplace': return handleAdminMarketplace(request, env, method);
-        case 'media': return handleAdminMedia(request, env, id);
-        case 'menus': return handleAdminMenus(request, env, method, id);
-        case 'seo': return handleAdminSeo(request, env, method, id, action);
-        case 'analytics': return handleAdminAnalytics(request, env, method, action);
+        case 'dashboard': return await handleAdminDashboard(request, env);
+        case 'posts': return await handleAdminPosts(request, env, id);
+        case 'pages': return await handleAdminPages(request, env, id);
+        case 'categories': return await handleAdminCategories(request, env, id);
+        case 'tags': return await handleAdminTags(request, env, id);
+        case 'settings': return await handleAdminSettings(request, env, method);
+        case 'themes': return await handleAdminThemes(request, env, method, id, action);
+        case 'plugins': return await handleAdminPlugins(request, env, method, id, action);
+        case 'marketplace': return await handleAdminMarketplace(request, env, method);
+        case 'media': return await handleAdminMedia(request, env, id);
+        case 'menus': return await handleAdminMenus(request, env, method, id);
+        case 'seo': return await handleAdminSeo(request, env, method, id, action);
+        case 'analytics': return await handleAdminAnalytics(request, env, method, action);
         default: return jsonResponse({ success: false, error: { code: 'NOT_FOUND', message: 'API 엔드포인트를 찾을 수 없습니다.' } }, 404);
       }
     } catch (err) {

@@ -32,16 +32,16 @@ export default {
     try {
       // 관리자 라우팅 (경로 기반 정확한 분기)
       if (pathname.startsWith(`/${env.ADMIN_PATH || 'cp-admin'}`)) {
-        return handleAdminRoute(request, env, ctx, securityHeaders);
+        return await handleAdminRoute(request, env, ctx, securityHeaders);
       }
 
       // 공개 API 라우팅 (/api/ 로 시작)
       if (pathname.startsWith('/api/')) {
-        return handlePublicRoute(request, env, securityHeaders);
+        return await handlePublicRoute(request, env, securityHeaders);
       }
 
       // HTML 공개 페이지 라우팅 (SSR)
-      return handlePublicHtml(request, env, ctx, securityHeaders);
+      return await handlePublicHtml(request, env, ctx, securityHeaders);
     } catch (err) {
       console.error('Worker Fatal Error:', err);
       return new Response(render500Html(), {

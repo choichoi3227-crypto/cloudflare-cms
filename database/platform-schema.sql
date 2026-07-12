@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS user_cloudflare_accounts (
     refresh_token TEXT,
     expires_at INTEGER,
     created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-    updated_at INTEGER NOT EXISTS DEFAULT (unixepoch())
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_cf_accounts_cf_id ON user_cloudflare_accounts(cloudflare_account_id);
 CREATE INDEX IF NOT EXISTS idx_cf_accounts_user ON user_cloudflare_accounts(user_id);
@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS site_registry (
     site_name TEXT NOT NULL,
     domain TEXT NOT NULL UNIQUE,
     blogger_blog_id TEXT,
-    r2_bucket_id TEXT,
+    media_provider TEXT NOT NULL DEFAULT 'blogger',
+    blogger_media_policy TEXT NOT NULL DEFAULT 'googleusercontent',
     status TEXT NOT NULL DEFAULT 'provisioning',
     created_at INTEGER NOT NULL DEFAULT (unixepoch()),
     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
@@ -56,7 +57,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sites_domain ON site_registry(domain);
 
 CREATE TABLE IF NOT EXISTS activity_logs (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON EXISTS DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     action TEXT NOT NULL,
     resource_type TEXT,
     resource_id TEXT,
@@ -68,7 +69,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_logs(user_id);
 
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON EXISTS DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     message TEXT NOT NULL,
     type TEXT NOT NULL DEFAULT 'info',

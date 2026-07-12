@@ -1,3 +1,4 @@
+import type { D1Database, KVNamespace } from '@cloudflare/workers-types';
 // workers/platform-api/src/types/index.ts
 export interface Env { DB: D1Database; KV: KVNamespace; ENVIRONMENT: string; }
 export interface AuthenticatedRequest extends Request { userId: string; cfToken: string; cfAccountId: string; }

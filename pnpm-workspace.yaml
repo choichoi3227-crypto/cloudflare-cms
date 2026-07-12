@@ -1,0 +1,6 @@
+packages:
+  - platform
+  - workers/platform-api
+  - workers/ai-gateway
+  - workers/cms-site
+  - shared

@@ -1,7 +1,7 @@
 // workers/cms-site/src/services/blogger.service.ts
 import type { D1Database } from '@cloudflare/workers-types';
 
-interface BloggerPost {
+export interface BloggerPost {
   id: string;
   title: string;
   published: string;
@@ -49,9 +49,9 @@ export class BloggerService {
     const conn = await this.getActiveBloggerConnection();
     if (!conn) return { posts: [], nextPageToken: null };
 
-    let url = `https://www.googleapis.com/blogger/v3/blogs/byblog?key=${conn.api_key_encrypted}&max-results=10&status=PUBLISHED`;
+    let url = `https://www.googleapis.com/blogger/v3/blogs/${encodeURIComponent(conn.blog_id)}/posts?key=${encodeURIComponent(conn.api_key_encrypted)}&maxResults=10&status=PUBLISHED`;
     if (pageToken) {
-      url += `&pageToken=${pageToken}`;
+      url += `&pageToken=${encodeURIComponent(pageToken)}`;
     }
 
     const res = await fetch(url);
@@ -83,11 +83,34 @@ export class BloggerService {
     const conn = await this.getActiveBloggerConnection();
     if (!conn) return null;
 
-    const url = `https://www.googleapis.com/blogger/v3/blogs/byurl?url=${encodeURIComponent(postUrl)}&key=${conn.api_key_encrypted}`;
-    const res = await fetch(url);
+    const searchUrl = new URL(`https://www.googleapis.com/blogger/v3/blogs/${encodeURIComponent(conn.blog_id)}/posts/search`);
+    searchUrl.searchParams.set('key', conn.api_key_encrypted);
+    searchUrl.searchParams.set('q', postUrl);
+
+    const res = await fetch(searchUrl.toString());
     if (!res.ok) return null;
 
-    const data = await res.json() as { items: BloggerPost[] };
-    return data.items[0] || null;
+    const data = await res.json() as { items?: BloggerPost[] };
+    return (data.items || []).find(post => post.url === postUrl) || data.items?.[0] || null;
   }
+}
+
+
+export function isGoogleusercontentUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && /(^|\.)googleusercontent\.com$/i.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+export function extractGoogleusercontentUrls(html: string): string[] {
+  const urls = new Set<string>();
+  const pattern = /https:\/\/[^"'<>\s]+googleusercontent\.com[^"'<>\s]*/gi;
+  for (const match of html.matchAll(pattern)) {
+    const candidate = match[0].replace(/&amp;/g, '&');
+    if (isGoogleusercontentUrl(candidate)) urls.add(candidate);
+  }
+  return [...urls];
 }

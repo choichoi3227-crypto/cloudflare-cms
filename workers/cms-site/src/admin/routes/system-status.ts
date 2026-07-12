@@ -2,7 +2,7 @@
 import type { Env } from '../../types';
 import { jsonResponse } from '../../utils/response';
 
-export async function handleAdminSystemStatus(request: request: Env): Promise<Response> {
+export async function handleAdminSystemStatus(request: Request, env: Env): Promise<Response> {
   const method = request.method;
   if (method !== 'GET') {
     return jsonResponse({ success: false, error: { code: 'METHOD_NOT_ALLOWED', message: 'GET 요청만 지원합니다.' } }, 405);
@@ -30,8 +30,8 @@ export async function handleAdminSystemStatus(request: request: Env): Promise<Re
 
     // 1. Worker 상태 확인
     const workersRegistry = await env.DB.prepare(
-      "SELECT worker_name, worker_domain, worker_type FROM workers_registry WHERE user_id = ? AND status = 'active'"
-    ).all<{ worker_name: string; worker_domain: string; worker_type: string }>();
+      "SELECT worker_name, worker_domain, worker_type FROM workers_registry WHERE user_id = ?"
+    ).bind(userId).all<{ worker_name: string; worker_domain: string; worker_type: string }>();
 
     const workerStatuses: Array<{
     name: string;
@@ -41,17 +41,17 @@ export async function handleAdminSystemStatus(request: request: Env): Promise<Re
     error?: string;
   }> = [];
 
-    for (const w of workersRegistry) {
+    for (const w of workersRegistry.results || []) {
       try {
         const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/workers/scripts/${w.worker_name}/settings`, { headers });
         if (!res.ok) throw new Error(`Worker not found: ${w.worker_name}`);
-        const data = await res.json() as { result: { id: string; created_on: string; modified_on: string; deployment_id: string; latest_deployment: { id: string; created_on: string; status: string } };
+        const data = await res.json() as { result?: { id: string; created_on: string; modified_on: string; deployment_id: string; latest_deployment?: { id: string; created_on: string; status: string } } };
 
         workerStatuses.push({
           name: w.worker_name,
           domain: w.worker_domain,
           type: w.worker_type === 'hub' ? 'CMS Hub' : 'Public Site',
-          status: data.status === 'active' ? 'Active' : `Failed (${data.status})`,
+          status: data.result ? 'Active' : 'Unknown',
         });
       } catch (err) {
         workerStatuses.push({
@@ -66,18 +66,24 @@ export async function handleAdminSystemStatus(request: request: Env): Promise<Re
 
     // 2. D1 상태 확인
     const d1List = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/d1/database`, { headers });
-    const d1Data = await d1List.json() as { result: Array<{ uuid: string; name: string; created_at: string }>;
-    const d1Statuses = d1Data.map(db => ({ name: db.name, type: 'D1 Database', status: 'Active' }));
+    const d1Data = await d1List.json() as { result: Array<{ uuid: string; name: string; created_at: string }> };
+    const d1Statuses = (d1Data.result || []).map(db => ({ name: db.name, type: 'D1 Database', status: 'Active' }));
 
     // 3. KV 상태 확인
     const kvList = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/storage/kv/namespaces`, { headers });
     const kvData = await kvList.json() as { result: Array<{ id: string; title: string }> };
-    const kvStatuses = kvData.map(kv => ({ name: kv.title || kv.id, type: 'KV Namespace', status: 'Active' }));
+    const kvStatuses = (kvData.result || []).map(kv => ({ name: kv.title || kv.id, type: 'KV Namespace', status: 'Active' }));
 
-    // 4. R2 상태 확인
-    const r2List = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/r2/buckets`, { headers });
-    const r2Data = await r2List.json() as { result: Array<{ id: string; name: string; created_at: string }> };
-    const r2Statuses = r2Data.map(r => ({ name: r.name, type: 'R2 Bucket', status: 'Active' }));
+    // 4. 미디어 저장소 상태 확인 (Blogger/googleusercontent 사용)
+    const bloggerConnections = await env.DB.prepare(
+      'SELECT blog_id, blog_name, blog_url, is_active FROM user_blogger_connections WHERE user_id = ? ORDER BY created_at DESC'
+    ).bind(userId).all<{ blog_id: string; blog_name: string | null; blog_url: string; is_active: number }>();
+    const mediaStatuses = (bloggerConnections.results || []).map((conn: { blog_id: string; blog_name: string | null; blog_url: string; is_active: number }) => ({
+      name: conn.blog_name || conn.blog_id,
+      type: 'Blogger googleusercontent',
+      status: conn.is_active ? 'Active' : 'Inactive',
+      url: conn.blog_url,
+    }));
 
     return jsonResponse({
       success: true,
@@ -86,10 +92,10 @@ export async function handleAdminSystemStatus(request: request: Env): Promise<Re
         workers: workerStatuses,
         databases: d1Statuses,
         kv: kvStatuses,
-        r2: r2Statuses,
+        media: mediaStatuses,
       },
     });
   } catch (err) {
-    return jsonResponse({ success: false, error: { code: 'SYSTEM_ERROR', message: `시스템 상태 확인 실패: ${err instanceof Error ? err.message : '알 수 없는 오류' } }, 500);
+    return jsonResponse({ success: false, error: { code: 'SYSTEM_ERROR', message: `시스템 상태 확인 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}` } }, 500);
   }
 }

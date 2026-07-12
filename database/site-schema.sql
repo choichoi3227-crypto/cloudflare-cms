@@ -216,3 +216,35 @@ CREATE TABLE IF NOT EXISTS ai_generations (
     response TEXT NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
+
+CREATE TABLE IF NOT EXISTS plugins (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL DEFAULT 'latest',
+    source TEXT NOT NULL DEFAULT 'wordpress.org',
+    download_url TEXT,
+    is_active INTEGER NOT NULL DEFAULT 0,
+    requires_php_wasm INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_plugins_active ON plugins(is_active);
+
+CREATE TABLE IF NOT EXISTS marketplace_cache (
+    id TEXT PRIMARY KEY,
+    asset_type TEXT NOT NULL,
+    query TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_marketplace_cache_lookup ON marketplace_cache(asset_type, query, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS php_wasm_events (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    asset_type TEXT,
+    asset_id TEXT,
+    message TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);

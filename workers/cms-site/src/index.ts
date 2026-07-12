@@ -125,8 +125,7 @@ async function handlePublicHtml(request: Request, env: Env, headers: Record<stri
 // ==========================================
 // 개별 페이지 렌더러 (D1 -> HTML 파이프라인)
 // ==========================================
-import { buildHtmlDocument, escapeHtml } from './rendering/html-engine';
-import { getSeoHead, buildSchemaScripts } from './services/seo.service';
+import { buildHtmlDocument, escapeHtml, getSeoHead, buildSchemaScripts } from './rendering/html-engine';
 
 async function renderHome(db: D1Database, cache: KVNamespace, siteName: string, baseUrl: string, url: URL): Promise<string> {
   const page = parseInt(url.searchParams.get('page') || '1', 10);

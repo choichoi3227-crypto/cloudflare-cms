@@ -1,6 +1,6 @@
 import type { Env } from '../../types';
 import { jsonResponse } from '../../utils/response';
-import { slugify } from '@shared/utils/slug';
+import { slugify } from '@cloudpress/shared';
 
 export async function handleAdminPosts(request: Request, env: Env, id?: string): Promise<Response> {
   const method = request.method;

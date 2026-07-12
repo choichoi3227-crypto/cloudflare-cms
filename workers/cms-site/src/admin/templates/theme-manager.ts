@@ -1,5 +1,6 @@
 // workers/cms-site/src/admin/templates/theme-manager.ts
 export function renderThemeManager(env: { ADMIN_PATH: string, siteConfig: Record<string, string> }): string {
+  const { ADMIN_PATH, siteConfig } = env;
   const activeThemeId = siteConfig.theme_active || 'theme_001';
   return `
     <div class="page-header">
@@ -73,12 +74,12 @@ export function renderThemeManager(env: { ADMIN_PATH: string, siteConfig: Record
               <span class="badge badge-gray">v\${t.version || '1.0.0'}</span>
             </div>
             <div class="theme-actions">
-              \${t.id !== activeThemeId ? \`<button class="btn btn-sm \${t.is_active ? 'btn-secondary' : 'btn-ghost'}" onclick="applyTheme('\${t.id}')" title="적용하기">적용</button>` : ''}
+              \${t.id !== activeThemeId ? \`<button class="btn btn-sm \${t.is_active ? 'btn-secondary' : 'btn-ghost'}" onclick="applyTheme('\${t.id}')" title="적용하기">적용</button>\` : ''}
               <button class="btn btn-danger btn-sm" onclick="deleteTheme('\${t.id}')" title="삭제">삭제</button>
             </div>
           </div>
         </div>
-      `);
+      \`);
     }
 
     async function showDetail(themeId: string) {
@@ -144,7 +145,7 @@ export function renderThemeManager(env: { ADMIN_PATH: string, siteConfig: Record
         if (data.success) {
           document.getElementById('upload-form').style.display = 'none';
           document.getElementById('upload-result').style.display = 'block';
-          document.getElementById('upload-result-text').textContent = `✅ ${data.data.name} 테마가 적용되었습니다.`;
+          document.getElementById('upload-result-text').textContent = '✅ ' + data.data.name + ' 테마가 적용되었습니다.';
           
           await loadThemes();
           if (data.data.id === activeThemeId) {
@@ -153,7 +154,7 @@ export function renderThemeManager(env: { ADMIN_PATH: string, siteConfig: Record
         } else {
           document.getElementById('upload-form').style.display = 'block';
           document.getElementById('upload-status').style.display = 'block';
-          document.getElementById('upload-status').textContent = `❌ 업로드 실패: ${data.error?.message || '알 수 없는 오류'}`;
+          document.getElementById('upload-status').textContent = '❌ 업로드 실패: ' + (data.error?.message || '알 수 없는 오류');
           document.getElementById('upload-result').style.display = 'block';
           document.getElementById('upload-result').className = 'toast toast-error';
           document.getElementById('upload-result-text').textContent = data.error?.message || '업로드 실패';
@@ -166,26 +167,24 @@ export function renderThemeManager(env: { ADMIN_PATH: string, siteConfig: Record
     }
 
     async function applyTheme(themeId: string) {
-      if (!confirm('이 테마를 적용하시겠습니까?') return;
+      if (!confirm('이 테마를 적용하시겠습니까?')) return;
       
-      const res = await api(`/themes/\${themeId}/activate`, { method: 'POST' });
+      const res = await api('/themes/' + themeId + '/activate', { method: 'POST' });
       
       if (res.success) {
         toast('테마가 활성화되었습니다. 사이트에 반영되는 데 몇 초 걸립니다.');
         activeThemeId = themeId;
         await loadThemes();
-        if (document.getElementById('detail-name').textContent === t.name) {
-          showDetail(themeId);
-        }
+        showDetail(themeId);
       } else {
         toast(res.error?.message || '테마 활성화에 실패했습니다.', 'error');
       }
     }
 
     async function deleteTheme(themeId: string) {
-      if (!confirm('정말 이 테마를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.') return;
+      if (!confirm('정말 이 테마를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.')) return;
 
-      const res = await api(`/themes/\${themeId}`, { method: 'DELETE' });
+      const res = await api('/themes/' + themeId, { method: 'DELETE' });
       
       if (res.success) {
         toast('테마가 삭제되었습니다.');
@@ -203,3 +202,5 @@ export function renderThemeManager(env: { ADMIN_PATH: string, siteConfig: Record
     loadThemes();
   }
   </script>
+`;
+}

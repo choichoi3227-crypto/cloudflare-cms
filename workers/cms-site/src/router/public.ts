@@ -1,6 +1,6 @@
 // workers/cms-site/src/router/public.ts
 import type { Env } from '../types';
-import { handlePublicHtml } from './rendering/html-renderer';
+import { handlePublicHtml } from '../rendering/html-renderer';
 import { jsonResponse } from '../utils/response';
 import { escapeHtml } from '../utils/sanitize';
 

@@ -7,7 +7,7 @@ compatibility_flags = ["wasm"] # Wasm 지원 활성화 (Go/Rust 로드를 위해
 [[d1_databases]]
 binding = "DB"
 database_name = "cloudpress_platform"
-database_id = "YOUR_PLATFORM_D1_ID"
+database_id = "8bf6671a-88dc-4e7c-84ae-8e55331216b8"
 
 [[kv_namespaces]]
 binding = "KV"

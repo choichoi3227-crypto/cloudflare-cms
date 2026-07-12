@@ -1,7 +1,7 @@
 name = "cloudpress-wordpress-hosting"
 main = "workers/cms-site/src/index.ts"
 compatibility_date = "2026-07-12"
-compatibility_flags = ["wasm", "nodejs_compat"]
+compatibility_flags = ["nodejs_compat"]
 
 # Single-worker hosting mode: deploy this one Worker and route all WordPress sites to it.
 # Per-site provisioning only registers domains, shards, and settings; it does not deploy per-site Workers.

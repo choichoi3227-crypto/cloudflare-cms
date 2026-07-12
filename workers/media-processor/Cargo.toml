@@ -1,0 +1,18 @@
+# workers/media-processor/Cargo.toml
+[package]
+name = "cloudpress-media"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
+webp = "0.3"
+
+[profile.release]
+opt-level = "z"     # Wasm 크기 최적화
+lto = true
+codegen-units = 1
+panic = "abort"

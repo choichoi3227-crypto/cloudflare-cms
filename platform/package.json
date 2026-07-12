@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "postinstall": "astro build",
     "preview": "astro preview",
-    "deploy": "astro build && wrangler pages deploy dist/",
+    "deploy": "wrangler deploy",
     "typecheck": "astro check"
   },
   "dependencies": {

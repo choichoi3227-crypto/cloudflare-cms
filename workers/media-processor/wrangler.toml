@@ -1,0 +1,7 @@
+# workers/media-processor/wrangler.toml
+name = "cloudpress-media"
+main = "build/index.js"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["wasm"]
+
+# Wasm 바인딩 설정은 Node.js 빌드 스크립트를 통해 주입합니다.

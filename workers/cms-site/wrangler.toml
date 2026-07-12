@@ -7,7 +7,7 @@ compatibility_flags = ["wasm"]
 [[d1_databases]]
 binding = "DB"
 database_name = "cp_site_template"
-database_id = "YOUR_SITE_D1_ID"
+database_id = "9e99a025-5356-40a3-a58a-871095cc8711"
 
 [[kv_namespaces]]
 binding = "KV"

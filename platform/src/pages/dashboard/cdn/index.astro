@@ -1,0 +1,13 @@
+---
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { parseSessionCookie } from '../../../lib/session';
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
+const rules = ['WordPress HTML: WP Rocket + KV edge cache', '정적 파일: Cloudflare CDN cache everything', '이미지: aibp100.jiji15899.workers.dev 생성 URL 고정', '도메인 CDN: zone별 purge / cache rules 관리'];
+---
+<DashboardLayout title="CDN 관리" activeNav="cdn">
+  <div class="mb-8"><h1 class="text-2xl font-bold text-white mb-2">WordPress / 도메인 CDN 관리</h1><p class="text-surface-400">WordPress CDN과 도메인 CDN 정책을 한 화면에서 관리합니다.</p></div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"><div class="glass rounded-xl p-6"><h2 class="font-semibold text-white mb-3">WordPress CDN</h2><p class="text-sm text-surface-400 mb-4">글/페이지 HTML은 php-wasm 실행 후 Astro 렌더링 엔진과 WP Rocket 캐시 레이어를 거칩니다.</p><button class="btn-primary text-sm">WordPress 캐시 비우기</button></div><div class="glass rounded-xl p-6"><h2 class="font-semibold text-white mb-3">도메인 CDN</h2><p class="text-sm text-surface-400 mb-4">도메인별 Cache Rules, Page Rules, Purge 작업을 Cloudflare 계정으로 실행합니다.</p><button class="btn-secondary text-sm">도메인 CDN 설정</button></div></div>
+  <div class="glass rounded-xl p-6"><h2 class="font-semibold text-white mb-4">적용 규칙</h2><ul class="space-y-2 text-sm text-surface-400">{rules.map((rule) => <li>• {rule}</li>)}</ul></div>
+</DashboardLayout>

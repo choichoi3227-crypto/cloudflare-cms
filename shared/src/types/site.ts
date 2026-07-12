@@ -8,6 +8,11 @@ export interface Site {
   d1_id: string | null;
   kv_id: string | null;
   status: SiteStatus;
+  wordpress_admin_username?: string | null;
+  wordpress_admin_password_hint?: string | null;
+  php_wasm_worker_name?: string | null;
+  shard_count?: number;
+  active_shard_key?: string;
   created_at: number;
   updated_at: number;
 }

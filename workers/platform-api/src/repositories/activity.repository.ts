@@ -1,6 +1,7 @@
 // workers/platform-api/src/repositories/activity.repository.ts
 import type { D1Database } from '@cloudflare/workers-types';
-import { generateId, now } from '@shared/utils/id';
+import { generateId } from '@shared/utils/id';
+import { now } from '@shared/utils/date';
 export class ActivityRepository {
   constructor(private db: D1Database) {}
   async log(data: { user_id:string; action:string; resource_type?:string; resource_id?:string; metadata?:Record<string,unknown>; ip_address?:string }): Promise<void> {

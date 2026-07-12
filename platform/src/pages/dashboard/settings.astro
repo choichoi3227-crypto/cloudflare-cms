@@ -1,0 +1,11 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import { parseSessionCookie } from '../../lib/session';
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
+---
+<DashboardLayout title="설정" activeNav="settings">
+  <div class="mb-8"><h1 class="text-2xl font-bold text-white mb-2">설정</h1><p class="text-surface-400">CloudPress WordPress Hosting 기본 설정입니다.</p></div>
+  <div class="glass rounded-xl p-6 space-y-4"><label class="block"><span class="text-sm text-surface-400">관리자 경로</span><input class="input-field mt-2" value="wp-admin" /></label><label class="block"><span class="text-sm text-surface-400">호스팅 모드</span><input class="input-field mt-2" value="single-worker" readonly /></label><button class="btn-primary">저장</button></div>
+</DashboardLayout>

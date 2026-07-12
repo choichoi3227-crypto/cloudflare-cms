@@ -1,6 +1,7 @@
 // workers/platform-api/src/repositories/user.repository.ts
 import type { D1Database } from '@cloudflare/workers-types';
-import { generateId, now } from '@shared/utils/id';
+import { generateId } from '@shared/utils/id';
+import { now } from '@shared/utils/date';
 import type { User, CloudflareAccount } from '@shared/types/user';
 
 export class UserRepository {

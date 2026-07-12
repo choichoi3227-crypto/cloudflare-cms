@@ -21,7 +21,7 @@ export class OAuthService {
       let base = data.username.replace(/[^a-zA-Z0-9가-힣_]/g,'').substring(0,20) || 'user';
       let username = base; let c = 1;
       while (await this.userRepo.findByUsername(username)) { username = `${base}${c++}`; }
-      user = await this.userRepo.create({ email:data.email, username, avatarUrl:data.avatarUrl });
+      user = await this.userRepo.create({ email:data.email, username, avatar_url:data.avatarUrl });
     }
     await this.cfAccountRepo.create({ user_id:user.id, cloudflare_account_id:data.cfAccountId, email:data.email, oauth_token:data.oauthToken, refresh_token:data.refreshToken, expires_at:data.expiresAt });
     return user;

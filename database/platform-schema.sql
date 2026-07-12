@@ -49,6 +49,15 @@ CREATE TABLE IF NOT EXISTS site_registry (
     media_provider TEXT NOT NULL DEFAULT 'blogger',
     blogger_media_policy TEXT NOT NULL DEFAULT 'googleusercontent',
     status TEXT NOT NULL DEFAULT 'provisioning',
+    worker_id TEXT,
+    d1_id TEXT,
+    kv_id TEXT,
+    wordpress_admin_username TEXT,
+    wordpress_admin_password_hash TEXT,
+    wordpress_admin_password_hint TEXT,
+    php_wasm_worker_name TEXT,
+    shard_count INTEGER NOT NULL DEFAULT 10,
+    active_shard_key TEXT NOT NULL DEFAULT 'database01.db',
     created_at INTEGER NOT NULL DEFAULT (unixepoch()),
     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
@@ -77,3 +86,33 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id);
+
+-- WordPress hosting provisioning metadata
+
+CREATE TABLE IF NOT EXISTS workers_registry (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    worker_name TEXT NOT NULL,
+    worker_domain TEXT NOT NULL,
+    worker_type TEXT NOT NULL DEFAULT 'site',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_workers_registry_user ON workers_registry(user_id);
+CREATE INDEX IF NOT EXISTS idx_workers_registry_type ON workers_registry(worker_type, status);
+
+CREATE TABLE IF NOT EXISTS wordpress_shards (
+    id TEXT PRIMARY KEY,
+    site_id TEXT NOT NULL REFERENCES site_registry(id) ON DELETE CASCADE,
+    shard_key TEXT NOT NULL,
+    database_name TEXT NOT NULL,
+    durable_object_id TEXT,
+    role TEXT NOT NULL DEFAULT 'content',
+    weight INTEGER NOT NULL DEFAULT 100,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    UNIQUE(site_id, shard_key)
+);
+CREATE INDEX IF NOT EXISTS idx_wordpress_shards_site_status ON wordpress_shards(site_id, status);

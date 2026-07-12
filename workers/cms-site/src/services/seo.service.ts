@@ -2,6 +2,7 @@
 import { escapeHtml } from '../utils/sanitize';
 
 interface SeoMetaRow {
+  id: string;
   object_type: string;
   object_id: string;
   meta_title: string | null;

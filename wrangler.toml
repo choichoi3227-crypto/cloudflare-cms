@@ -1,0 +1,27 @@
+name = "cloudpress-wordpress-hosting"
+main = "workers/cms-site/src/index.ts"
+compatibility_date = "2026-07-12"
+compatibility_flags = ["wasm", "nodejs_compat"]
+
+# Single-worker hosting mode: deploy this one Worker and route all WordPress sites to it.
+# Per-site provisioning only registers domains, shards, and settings; it does not deploy per-site Workers.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cloudpress_wordpress_hosting"
+database_id = "REPLACE_WITH_HOSTING_D1_ID"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_HOSTING_KV_ID"
+
+[vars]
+ENVIRONMENT = "production"
+ADMIN_PATH = "wp-admin"
+PHP_WASM_VERSION = "8.3"
+PHP_WASM_ENTRYPOINT = "php_wasm_run"
+PHP_WASM_MEMORY_PAGES = "128"
+HOSTING_MODE = "single-worker"
+IMAGE_GENERATION_WORKER_URL = "https://aibp100.jiji15899.workers.dev/"
+REQUIRED_AI_PLUGIN = "aibp-pro.zip"
+REQUIRED_CACHE_PLUGIN = "wp-rocket-main.zip"

@@ -1,3 +1,4 @@
+import type { KVNamespace } from '@cloudflare/workers-types';
 // workers/platform-api/src/middleware/rate-limit.ts
 export async function rateLimit(key: string, limit: number, windowMs: number, kv: KVNamespace): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
   const now = Date.now(); const windowKey = `rl:${key}`;

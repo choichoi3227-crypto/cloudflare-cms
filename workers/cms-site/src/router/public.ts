@@ -59,45 +59,45 @@ async function handlePublicApi(request: Request, env: Env, headers: Record<strin
 
   // GET /api/posts
   if (pathname === '/api/posts') {
-    return handleApiPosts(request, env);
+    return handleApiPosts(request, env, headers);
   }
 
   // GET /api/posts/:slug
   if (pathname.startsWith('/api/posts/')) {
     const slug = pathname.replace('/api/posts/', '').replace(/\/$/, '');
-    return handleApiPost(request, env, slug);
+    return handleApiPost(request, env, slug, headers);
   }
 
   // GET /api/pages
   if (pathname === '/api/pages') {
-    return handleApiPages(env);
+    return handleApiPages(env, headers);
   }
 
   // GET /api/categories
   if (pathname === '/api/categories') {
-    return handleApiCategories(env);
+    return handleApiCategories(env, headers);
   }
 
   // GET /api/tags
   if (pathname === '/api/tags') {
-    return handleApiTags(env);
+    return handleApiTags(env, headers);
   }
 
   // GET /api/menu/:location
   if (pathname.startsWith('/api/menu/')) {
     const location = pathname.replace('/api/menu/', '');
-    return handleApiMenu(env, location);
+    return handleApiMenu(env, location, headers);
   }
 
   // GET /api/search
   if (pathname === '/api/search') {
-    return handleApiSearch(request, env, url);
+    return handleApiSearch(request, env, url, headers);
   }
 
   return jsonResponse({ success: false, error: { code: 'NOT_FOUND', message: 'API를 찾을 수 없습니다.' } }, 404, { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
 }
 
-async function handleApiPosts(request: Request, env: Env): Promise<Response> {
+async function handleApiPosts(request: Request, env: Env, headers: Record<string, string>): Promise<Response> {
   const url = new URL(request.url);
   const page = parseInt(url.searchParams.get('page') || '1');
   const perPage = parseInt(url.searchParams.get('per_page') || '10');
@@ -122,7 +122,7 @@ async function handleApiPosts(request: Request, env: Env): Promise<Response> {
   }
 }
 
-async function handleApiPost(request: Request, env: Env, slug: string): Promise<Response> {
+async function handleApiPost(request: Request, env: Env, slug: string, headers: Record<string, string>): Promise<Response> {
   try {
     const bloggerService = createBloggerService(env);
     const post = await bloggerService.fetchPostByUrl(`${env.SITE_DOMAIN}/post/${slug}`);
@@ -137,7 +137,7 @@ async function handleApiPost(request: Request, env: Env, slug: string): Promise<
   }
 }
 
-async function handleApiPages(env: Env): Promise<Response> {
+async function handleApiPages(env: Env, headers: Record<string, string>): Promise<Response> {
   try {
     const bloggerService = createBloggerService(env);
     // Blogger pages are accessed via URL slug (e.g., /p/example-post-title.html)
@@ -149,7 +149,7 @@ async function handleApiPages(env: Env): Promise<Response> {
   }
 }
 
-async function handleApiCategories(env: Env): Promise<Response> {
+async function handleApiCategories(env: Env, headers: Record<string, string>): Promise<Response> {
   try {
     const bloggerService = createBloggerService(env);
     // Blogger categories are labels.
@@ -171,7 +171,7 @@ async function handleApiCategories(env: Env): Promise<Response> {
   }
 }
 
-async function handleApiTags(env: Env): Promise<Response> {
+async function handleApiTags(env: Env, headers: Record<string, string>): Promise<Response> {
   try {
     const bloggerService = createBloggerService(env);
     const { posts } = await bloggerService.fetchPosts();
@@ -191,8 +191,8 @@ async function handleApiTags(env: Env): Promise<Response> {
   }
 }
 
-async function handleApiMenu(env: Env, location: string): Promise<Response> {
-  const rows = await env.DB.prepare(
+async function handleApiMenu(env: Env, location: string, headers: Record<string, string>): Promise<Response> {
+  const { results: rows } = await env.DB.prepare(
     'SELECT mi.* FROM menu_items mi INNER JOIN menus m ON mi.menu_id = m.id WHERE m.location = ? ORDER BY mi.sort_order'
   ).bind(location).all<{ label: string; url: string; sort_order: number }>();
 
@@ -200,7 +200,7 @@ async function handleApiMenu(env: Env, location: string): Promise<Response> {
   return jsonResponse({ success: true, data: menu }, 200, { headers: { 'Content-Type': 'application/json', ...headers } });
 }
 
-async function handleApiSearch(request: Request, env: Env, url: URL): Promise<Response> {
+async function handleApiSearch(request: Request, env: Env, url: URL, headers: Record<string, string>): Promise<Response> {
   const q = url.searchParams.get('q') || '';
   if (!q) return jsonResponse({ success: true, data: [] }, 200, { headers: { 'Content-Type': 'application/json', ...headers } });
 

@@ -1,4 +1,5 @@
 // shared/src/types/post.ts
+import type { SeoMeta } from './seo';
 export interface Post {
   id: string;
   title: string;

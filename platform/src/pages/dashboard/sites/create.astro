@@ -25,7 +25,7 @@ Astro.locals.user = { id: session.userId, email: session.email, username: sessio
       const siteName = (document.getElementById('siteName') as HTMLInputElement).value.trim();
       const domain = (document.getElementById('domain') as HTMLInputElement).value.trim();
       try {
-        const r = await fetch('/api/sites', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({siteName,domain}) });
+        const r = await fetch('/api/sites', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({site_name:siteName,domain}) });
         const result = await r.json();
         if (result.success) { window.location.href = '/dashboard'; }
         else { errorEl.textContent = result.error?.message || '사이트 생성에 실패했습니다.'; errorEl.classList.remove('hidden'); submitBtn.disabled = false; submitBtn.textContent = '사이트 만들기'; }

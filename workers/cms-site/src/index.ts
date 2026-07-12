@@ -41,7 +41,7 @@ export default {
       }
 
       // HTML 공개 페이지 라우팅 (SSR)
-      return handlePublicHtml(request, env, securityHeaders);
+      return handlePublicHtml(request, env, ctx, securityHeaders);
     } catch (err) {
       console.error('Worker Fatal Error:', err);
       return new Response(render500Html(), {
@@ -55,7 +55,7 @@ export default {
 // ==========================================
 // 공개 HTML 페이지 렌더링 파이프라인
 // ==========================================
-async function handlePublicHtml(request: Request, env: Env, headers: Record<string, string>): Promise<Response> {
+async function handlePublicHtml(request: Request, env: Env, ctx: ExecutionContext, headers: Record<string, string>): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname;
   const db = env.DB;
@@ -79,10 +79,10 @@ async function handlePublicHtml(request: Request, env: Env, headers: Record<stri
   let html = '';
 
   if (pathname === '/' || pathname === '') {
-    html = await renderHome(db, cache, siteName, baseUrl, url);
+    html = await renderHome(db, cache as any, siteName, baseUrl, url);
   } else if (pathname.startsWith('/post/')) {
     const slug = pathname.replace('/post/', '').replace(/\/$/, '');
-    html = await renderPost(db, cache, slug, siteName, baseUrl);
+    html = await renderPost(db, cache as any, slug, siteName, baseUrl);
   } else if (pathname.startsWith('/page/')) {
     const slug = pathname.replace('/page/', '').replace(/\/$/, '');
     html = await renderPage(db, slug, siteName, baseUrl);
@@ -175,23 +175,23 @@ async function renderPost(db: D1Database, cache: KVNamespace, slug: string, site
   const post = await db.prepare(
     "SELECT * FROM posts WHERE slug = ? AND status = 'published'"
   ).bind(slug).first<{
-    id: string; title: string; slug: string; content_html: string; featured_image: string | null; published_at: number | null; excerpt: string;
+    id: string; title: string; slug: string; content: string; content_html: string; featured_image: string | null; published_at: number | null; excerpt: string;
   }>();
 
   if (!post) return render404Html(siteName);
 
   // 카테고리/태그 조회
-  const cats = await db.prepare(
+  const { results: cats } = await db.prepare(
     "SELECT c.name, c.slug FROM categories c INNER JOIN post_categories pc ON c.id = pc.category_id WHERE pc.post_id = ?"
   ).bind(post.id).all<{ name: string; slug: string }>();
   
-  const tags = await db.prepare(
+  const { results: tags } = await db.prepare(
     "SELECT t.name, t.slug FROM tags t INNER JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = ?"
   ).bind(post.id).all<{ name: string; slug: string }>();
 
   // SEO & Schema
-  const seoMeta = await db.prepare("SELECT * FROM seo_meta WHERE object_type = 'post' AND object_id = ?").bind(post.id).first();
-  const schemas = await db.prepare("SELECT schema_json, schema_type FROM schemas WHERE object_type = 'post' AND object_id = ?").bind(post.id).all<{ schema_json: string; schema_type: string }>();
+  const seoMeta = await db.prepare("SELECT * FROM seo_meta WHERE object_type = 'post' AND object_id = ?").bind(post.id).first<any>();
+  const { results: schemas } = await db.prepare("SELECT schema_json, schema_type FROM schemas WHERE object_type = 'post' AND object_id = ?").bind(post.id).all<{ schema_json: string; schema_type: string }>();
 
   const seoHead = getSeoHead({
     title: seoMeta?.meta_title || post.title,
@@ -236,12 +236,12 @@ async function renderPost(db: D1Database, cache: KVNamespace, slug: string, site
 
 async function renderPage(db: D1Database, slug: string, siteName: string, baseUrl: string): Promise<string> {
   const page = await db.prepare("SELECT * FROM pages WHERE slug = ? AND status = 'published'").bind(slug).first<{
-    title: string; content_html: string; slug: string;
+    id: string; title: string; content: string; content_html: string; slug: string;
   }>();
 
   if (!page) return render404Html(siteName);
 
-  const seoMeta = await db.prepare("SELECT * FROM seo_meta WHERE object_type = 'page' AND object_id = ?").bind(page.id).first();
+  const seoMeta = await db.prepare("SELECT * FROM seo_meta WHERE object_type = 'page' AND object_id = ?").bind(page.id).first<any>();
   
   const seoHead = getSeoHead({
     title: seoMeta?.meta_title || page.title,

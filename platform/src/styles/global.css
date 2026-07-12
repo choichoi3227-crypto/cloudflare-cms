@@ -19,3 +19,20 @@
 }
 @font-face { font-family:'Pretendard'; src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-regular.woff2') format('woff2'); font-weight:400; font-display:swap; }
 @font-face { font-family:'Pretendard'; src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-bold.woff2') format('woff2'); font-weight:700; font-display:swap; }
+
+/* Light service-site refresh: keep existing class names while moving the UI to a clean hosting dashboard theme. */
+@layer base {
+  body { @apply bg-slate-50 text-slate-900; }
+}
+@layer components {
+  .glass { @apply bg-white border border-slate-200 shadow-sm backdrop-blur-none; }
+  .btn-primary { @apply rounded-md bg-slate-900 text-white hover:bg-slate-700 shadow-sm; }
+  .btn-secondary { @apply rounded-md bg-white text-slate-900 border border-slate-300 hover:bg-slate-100; }
+  .btn-ghost { @apply rounded-md text-slate-600 hover:text-slate-950 hover:bg-slate-100; }
+  .input-field { @apply rounded-md bg-white border-slate-300 text-slate-950 placeholder-slate-400 focus:border-slate-900 focus:ring-slate-900/20; }
+}
+body .text-white { color: rgb(15 23 42); }
+body .text-surface-100, body .text-surface-200, body .text-surface-300, body .text-surface-400, body .text-surface-500 { color: rgb(71 85 105); }
+body .bg-surface-950, body .bg-surface-900, body .bg-surface-800 { background-color: rgb(248 250 252); }
+body .border-surface-800, body .border-surface-700 { border-color: rgb(226 232 240); }
+body .rounded-full { border-radius: 0.5rem; }

@@ -1,6 +1,6 @@
 # workers/media-processor/wrangler.toml
 name = "cloudpress-media"
-main = "build/index.js"
+main = "build/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["wasm"]
 

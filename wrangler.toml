@@ -9,11 +9,11 @@ compatibility_flags = ["wasm", "nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "cloudpress_wordpress_hosting"
-database_id = "REPLACE_WITH_HOSTING_D1_ID"
+database_id = "aa9b501a-2119-4d71-9246-9b95b3eb30a3"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "REPLACE_WITH_HOSTING_KV_ID"
+id = "dedbfc82cf684237a5db3c51dcea20d8"
 
 [vars]
 ENVIRONMENT = "production"

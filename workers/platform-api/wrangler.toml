@@ -11,7 +11,7 @@ database_id = "8bf6671a-88dc-4e7c-84ae-8e55331216b8"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "YOUR_PLATFORM_KV_ID"
+id = "e4858ee03ee4456989ca1cfcd3746a93"
 
 [vars]
 ENVIRONMENT = "production"

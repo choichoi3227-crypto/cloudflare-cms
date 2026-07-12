@@ -1,0 +1,7 @@
+// platform/public/robots.txt
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /auth/
+Disallow: /api/
+Sitemap: https://cloud-press.co.kr/sitemap.xml

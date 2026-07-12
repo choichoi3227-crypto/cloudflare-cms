@@ -2,6 +2,6 @@
   "name": "cloudpress-platform",
   "compatibility_date": "2026-07-12",
   "kv_namespaces": [
-    { "binding": "SESSION", "id": "YOUR_SESSION_KV_ID" }
+    { "binding": "SESSION", "id": "97f2ae62992f4acd84dd63ac7d203110" }
   ]
 }

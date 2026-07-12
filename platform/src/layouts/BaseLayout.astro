@@ -1,0 +1,68 @@
+---
+// platform/src/layouts/BaseLayout.astro
+interface Props { title: string; description?: string; ogImage?: string; noIndex?: boolean; }
+const { title, description = 'CloudPress - Cloudflare 기반 차세대 AI CMS. WordPress보다 쉽고, Blogger보다 강력합니다.', ogImage = '/og-image.png', noIndex = false } = Astro.props;
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
+---
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content={description} />
+  <meta name="generator" content={Astro.generator} />
+  {noIndex && <meta name="robots" content="noindex, nofollow" />}
+  <title>{title}</title>
+  <link rel="canonical" href={canonicalUrl} />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:url" content={canonicalUrl} />
+  <meta property="og:image" content={new URL(ogImage, Astro.site).toString()} />
+  <meta property="og:locale" content="ko_KR" />
+  <meta property="og:site_name" content="CloudPress" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={description} />
+  <meta name="twitter:image" content={new URL(ogImage, Astro.site).toString()} />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style is:global>@import '../styles/global.css';</style>
+  <script type="application/ld+json" set:html={JSON.stringify({ "@context":"https://schema.org","@type":"WebSite","name":"CloudPress","url":"https://cloud-press.co.kr","description":description })} />
+</head>
+<body class="min-h-screen flex flex-col">
+  <header>
+    <nav class="fixed top-0 left-0 right-0 z-50 glass">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          <a href="/" class="flex items-center gap-2 group">
+            <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform"><svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+            <span class="text-xl font-bold text-white">Cloud<span class="text-brand-500">Press</span></span>
+          </a>
+          <div class="hidden md:flex items-center gap-1">
+            <a href="/features" class="btn-ghost text-sm">기능</a>
+            <a href="/docs" class="btn-ghost text-sm">문서</a>
+          </div>
+          <div class="flex items-center gap-3">
+            <a href="/dashboard" class="btn-primary text-sm">무료로 시작하기</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+  </header>
+  <main class="flex-1 pt-16"><slot /></main>
+  <footer class="border-t border-surface-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div class="col-span-2 md:col-span-1">
+          <a href="/" class="flex items-center gap-2 mb-4"><div class="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="text-lg font-bold text-white">Cloud<span class="text-brand-500">Press</span></span></a>
+          <p class="text-sm text-surface-500">Cloudflare 기반 차세대 AI CMS</p>
+        </div>
+        <div><h3 class="text-sm font-semibold text-surface-300 mb-3">제품</h3><ul class="space-y-2"><li><a href="/features" class="text-sm text-surface-500 hover:text-surface-300">기능</a></li><li><a href="/docs" class="text-sm text-surface-500 hover:text-surface-300">문서</a></li></ul></div>
+        <div><h3 class="text-sm font-semibold text-surface-300 mb-3">리소스</h3><ul class="space-y-2"><li><a href="/docs" class="text-sm text-surface-500 hover:text-surface-300">가이드</a></li><li><a href="/docs" class="text-sm text-surface-500 hover:text-surface-300">API 레퍼런스</a></li></ul></div>
+        <div><h3 class="text-sm font-semibold text-surface-300 mb-3">법적 고지</h3><ul class="space-y-2"><li><a href="#" class="text-sm text-surface-500 hover:text-surface-300">이용약관</a></li><li><a href="#" class="text-sm text-surface-500 hover:text-surface-300">개인정보처리방침</a></li></ul></div>
+      </div>
+      <div class="mt-8 pt-8 border-t border-surface-800 text-center"><p class="text-sm text-surface-600">&copy; {new Date().getFullYear()} CloudPress. All rights reserved.</p></div>
+    </div>
+  </footer>
+</body>
+</html>

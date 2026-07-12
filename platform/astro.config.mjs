@@ -9,6 +9,6 @@ export default defineConfig({
   integrations: [tailwind()],
   site: 'https://cloud-press.co.kr',
   vite: {
-    define: { 'import.meta.env.PUBLIC_SITE_URL': 'https://cloud-press.co.kr' },
+    define: { 'import.meta.env.PUBLIC_SITE_URL': JSON.stringify('https://cloud-press.co.kr') },
   },
 });

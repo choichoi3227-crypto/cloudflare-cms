@@ -1,0 +1,2344 @@
+/**
+ * BloggerSEO Worker v13
+ * ─────────────────────────────────────────────────────────────────────
+ * v13 수정 사항 (v12 대비, 우선순위 1):
+ *   1.  [DNS Proxied(주황 구름) 리디렉션 무한 루프 근본 수정]
+ *       bloggerFetch()가 cf.resolveOverride만으로 origin DNS를 Blogger로
+ *       돌리려던 방식을 버리고, fetch target host 자체를 ghs.google.com
+ *       으로 직접 치환 + Host 헤더로 커스텀 도메인 전달하는 방식으로
+ *       교체. resolveOverride는 "URL host와 override host가 모두 같은
+ *       zone 안에 있을 때만" 동작하는데 ghs.google.com은 사용자의 zone이
+ *       아니므로 항상 무시되고, 그 결과 DNS가 Proxied(주황 구름)인 순간
+ *       fetch가 Worker 자기 자신을 호출해 무한 루프가 발생했다. 이 근본
+ *       원인을 제거해 Proxied 여부와 무관하게 항상 정상 동작한다.
+ *       (상세 원리는 bloggerFetch() 주석 참고)
+ *   2.  자기호출 방어 어서션 추가 — 향후 리팩터링으로 회귀가 생겨도
+ *       무한 루프 대신 즉시 명확한 에러로 실패.
+ *
+ * v13 수정 사항 (우선순위 2 — WASM 사용 확대):
+ *   3.  [본문 텍스트 추출 + meta description 생성 WASM 가속]
+ *       매 요청(캐시 미스 시) 렌더링 경로의 실질 핫패스인 extractBodyText/
+ *       buildMetaDescription을 순수 JS 정규식 체인에서 WASM(AssemblyScript,
+ *       O(n) 단일 패스 상태 머신)으로 교체. meta description은 한글/한자
+ *       등 전각 문자를 폭 2로 계산하는 CJK-aware 절단 로직 추가.
+ *   4.  [SHA-256/HMAC/Base64/상수시간비교 WASM 실연결]
+ *       wasm-src/assembly/index.ts에는 이미 존재했지만 wasm-loader.js의
+ *       wasmCore에는 연결되지 않아 github-tenant.js 등에서 호출 시 즉시
+ *       TypeError로 깨지던 sha256HexShort/hmacSha256Hex/constantTimeEqual을
+ *       실제로 wire. Base64 인코더의 패딩 계산 버그와 디코더의 패딩(=)
+ *       처리 버그(길이가 3의 배수가 아닌 입력에서 스퓨리어스 바이트 발생)도
+ *       함께 수정.
+ *
+ * v13 추가 수정 (배포 후 리포트된 "SSL handshake failed"):
+ *   5.  [resolveOverride/http3 중복·잠재 충돌 제거]
+ *       bloggerFetch()의 targetUrl이 이미 https://ghs.google.com/...을
+ *       직접 가리키도록 바뀐 뒤에도 cf.resolveOverride: GHS_TARGET이
+ *       그대로 남아있어 "URL host를 자기 자신으로 다시 override"하는
+ *       완전한 중복 설정이 되어 있었다. 일부 Workers 런타임에서
+ *       resolveOverride가 설정된 채로 TLS 연결을 맺으면 SNI/인증서 검증
+ *       경로가 일반 fetch와 달라져 SSL handshake 실패로 이어질 수 있어
+ *       제거했다. 같은 이유로 http3(QUIC) 힌트도 제거해 표준 HTTP/2 +
+ *       TLS 1.3 경로로 통일했다(argoBuildFetchOptions, 기본 cfOpts 모두).
+ *   6.  [Error 525 수정 — Host 헤더 오버라이드 방식 교체]
+ *       fetch(targetUrl, { headers, ... })처럼 "일반 init 객체"에 Host
+ *       헤더를 담아 넘기는 방식은 Fetch 표준상 Host가 forbidden(제한)
+ *       헤더라 Workers 런타임에서 안정적으로 반영되지 않는 사례가
+ *       있었다(Cloudflare 공식 커뮤니티: "we can't allow you to specify
+ *       a Host header that is inconsistent with the routing"). 그 결과
+ *       Blogger(ghs.google.com)가 어느 블로그인지 판별하지 못하거나
+ *       요청이 예기치 않게 처리되어 Error 525(Origin SSL handshake
+ *       failed)로 이어질 수 있었다. Cloudflare 공식 예제/커뮤니티에서
+ *       검증된 패턴대로 new Request(url, init) → outboundRequest.headers
+ *       .set('host', ...) → fetch(outboundRequest) 순서로 교체했다.
+ *
+ * v13 수정 사항 (우선순위 3 — 에러 방지 장치):
+ *   6.  [관리 패널 하드코딩 기본 시크릿 제거 — 심각한 보안 결함]
+ *       env.PANEL_SECRET 미설정 시 소스코드에 노출된 기본값
+ *       'change-me-in-dashboard'로 조용히 폴백하던 것을 제거. 이제
+ *       PANEL_SECRET이 없거나 16자 미만이면 /panel 자체를 503으로 완전
+ *       차단한다. 인증 비교도 wasmCore.constantTimeEqual(상수시간)로 교체.
+ *   7.  [관리 패널 Bot MFA 우회 취약점 수정 — 심각한 보안 결함]
+ *       hasCloudflareBotMfa()가 클라이언트가 자유롭게 조작 가능한 HTTP
+ *       요청 헤더(cf-bot-score/cf-verified-bot)를 신뢰하던 것을, 실제
+ *       Cloudflare 엣지가 서버측에서 채워주는 request.cf.botManagement
+ *       객체 기반으로 교체. 이전 구현은 누구나 해당 헤더를 요청에 직접
+ *       붙이는 것만으로 관리 패널의 봇 MFA 체크를 완전히 우회할 수 있었다.
+ *   8.  [Durable Object Redis 손상 데이터 자동 치유 + 입력 검증]
+ *       redis-do.js: vdata JSON 파싱 실패 시 해당 키를 자동 삭제해 다음
+ *       접근부터 정상 복구되게 함(이전에는 손상 키가 영구히 500만 반환).
+ *       cmd/cmd.op/cmd.key 누락·타입 오류를 진입점에서 사전 검증.
+ *       shardOf()의 비문자열 key 방어, sendToShard()의 resp.json() 파싱
+ *       실패 방어도 추가.
+ *   9.  [인스턴스 메모리 캐시 무한 증가 방지]
+ *       store.js의 L1/L4/CNAME/RateLimit 메모리 Map들에 크기 상한과
+ *       자동 축출(만료 우선, 그다음 최오래된 항목) 로직 추가 — 다양한
+ *       키가 계속 유입되는 대형/멀티테넌트 배포에서 장시간 실행 시
+ *       메모리 사용량이 무한정 늘어나는 것을 방지.
+ *  10.  [미사용 import 정리] routing.js의 죽은 fnv1a32Hex import, security.js/
+ *       ssl.js/cache-reserve.js의 죽은 kvGet/kvSet import 제거.
+ *  11.  [비문자열 key 방어] store.js의 preferKvFirst/clampTtlForKey/kvScan이
+ *       key/pattern이 문자열이 아닐 때 TypeError로 죽지 않도록 방어.
+ *
+ * v9 수정 사항 (v8 대비):
+ *   1.  [리디렉션 과다 수정] 슬러그 확정 시 발생하던 이중 301 지점을 하나로
+ *       통합. 방금 슬러그가 새로 생성된 요청은 그 자리에서 바로 렌더링하고,
+ *       KV eventual consistency로 인한 alias 조회 실패 시에도 리디렉션
+ *       루프가 생기지 않도록 방어 로직 추가. (상세: resolveSlugRoute,
+ *       updateSlugKV, handleFetch 참고)
+ *   2.  [K8s·컨테이너·Linux 유사 코드 제거] Cloudflare Workers(V8 Isolate)는
+ *       실제 프로세스·cgroup·커널이 존재하지 않아 어떤 요청도 실질적으로
+ *       처리하지 못하면서 매 요청마다 CPU만 소모하던 시뮬레이션 계층
+ *       (src/k8s.js, src/container.js, src/linux.js 및 이를 호출하던 모든
+ *       부트스트랩/리콘실/크론 틱)을 요청 경로에서 완전히 제거. 관련 패널
+ *       API는 "지원 종료" 상태를 명확히 반환하도록 정리.
+ *   3.  SSL/TLS, 로드밸런서, SEO 기능은 v8과 동일하게 유지.
+ */
+
+import { wasmCore }           from './src/wasm-loader.js';
+import {
+  cnameGet, cnameSet,
+  checkRateLimit, recordMetric, getMetrics,
+  slugOriginGet, slugAliasGet, upsertSlug, touchSlug, purgeAllSlugs,
+  isIpBlocked, blockIp, unblockIp, listBlockedIps,
+  recordAnalytics, getAnalytics,
+  doRedisAvailable, doRedisClusterStats, doRedisFlushAll,
+} from './src/store.js';
+import {
+  cacheReserveGet, cacheReservePut, cacheReserveGetStaleFallback,
+  cacheReservePurge, cacheReserveStats,
+  cacheReserveInvalidate, cacheReserveDeleteUrl, isCacheable,
+} from './src/cache-reserve.js';
+import {
+  argoSelectRoute, argoRecordLatency, argoBuildFetchOptions,
+  regionalCacheRecord, regionalCacheStats,
+  priorityRoute, buildDeviceHints, buildCacheControl,
+  lbAcquire, lbRelease, lbLoad, lbWorkerId, lbHeartbeat, lbClusterLoad,
+  getPageTypeTtl,
+} from './src/routing.js';
+import { buildSchemas, injectSchemaMarkup, injectSearchEngineTags } from './src/schema.js';
+import { handleSitemapRequest, handleRssRequest, generateSitemap, generateRss } from './src/sitemap.js';
+import {
+  extractMeta, extractTagContent,
+  extractFirstImage, extractSiteName, extractLogoUrl,
+  extractLabels, extractJsonLdDate, escapeAttr, escapeRe, safeTransform,
+  retryAsync, retryOriginFetch, circuitStatus,
+} from './src/utils.js';
+import { enforceVpnBlock, hasCloudflareBotMfa, handleAdsClick, injectAdSenseClickGuard, shouldHideAds, hideAds, securitySettings, isKnownSearchEngineCrawler } from './src/security.js';
+import { googleIntegrationStatus, runGoogleSync } from './src/google-integrations.js';
+
+// MyDurableObject: Cloudflare Durable Objects 바인딩에서 이 클래스를 찾으려면
+// main 파일(worker.js)에서 named export로 노출되어 있어야 한다.
+// 클래스 이름은 Cloudflare 대시보드에서 먼저 만든 네임스페이스(class_name)와 맞춰
+// MyDurableObject로 되어 있다 — 역할은 자체 제작 Redis 샤드(구 RedisShard)와 동일.
+export { MyDurableObject } from './src/redis-do.js';
+
+// 신규 모듈 import
+import { applyAllSeoFeatures, pingIndexNow, pingSearchEngines,
+         buildServerTimingHeader, buildSecurityHeaders, buildImageSitemapXml } from './src/seo-features.js';
+import {
+  enforceHttpsRedirect,
+  autoRegisterRoute,
+  handleSslPanelApi,
+  cronRefreshCertStatus,
+  resolveHostFromRoutes,
+  listRoutes,
+} from './src/ssl.js';
+// ─────────────────────────────────────────────────────────────────────
+// [v9] K8s·컨테이너·Linux 유사 시뮬레이션 모듈(src/k8s.js, src/container.js,
+// src/linux.js) import 제거.
+// Cloudflare Workers는 V8 Isolate로 실행되며 실제 프로세스/cgroup/커널이
+// 없어 이 모듈들은 어떤 요청도 실질적으로 처리하지 못했다. 그런데도 매
+// 요청마다 bootstrap/reconcile/cron tick이 실행되어 CPU 시간만 소모하고,
+// 모듈 전역 상태(in-memory Map)는 Isolate가 재활용될 때마다 사라져
+// "정상 작동하는 오케스트레이션"이 아니라 매번 초기화되는 껍데기였다.
+// 요청 처리에 실질적 기여가 없으므로 완전히 제거한다.
+// ─────────────────────────────────────────────────────────────────────
+
+const GHS_TARGET = 'ghs.google.com';
+const DOH_URL    = 'https://1.1.1.1/dns-query';
+
+// [v9] 여기 있던 K8s(Cluster/Deployment/Service) + Linux 서브시스템
+// 부트스트랩 IIFE를 제거했다. Cloudflare Workers 환경에는 실제로 관리할
+// 프로세스·컨테이너·네트워크 네임스페이스가 없으므로, 이 블록은 매 Isolate
+// 기동마다(그리고 재사용 중에도 요청마다 reconcile로) CPU만 소모하며 아무
+// 실질적 인프라도 만들지 않았다.
+
+// ─────────────────────────────────────────────
+// 메인 핸들러
+// ─────────────────────────────────────────────
+export default {
+  // ── HTTP 요청 핸들러 ──────────────────────────────────────────────
+  async fetch(request, env, ctx) {
+    ctx.waitUntil(wasmCore.warmup().catch(() => {}));
+    // 로드밸런서 heartbeat (비동기)
+    ctx.waitUntil(lbHeartbeat(env).catch(() => {}));
+    // [v9] 여기 있던 Cluster.reconcileAll() / CronDaemon.tick() 호출 제거.
+    // 실제 인프라를 관리하지 않는 시뮬레이션 코드를 매 요청마다 실행하는
+    // 것은 순수 오버헤드였다 (상세 이유는 파일 상단 주석 참고).
+    try {
+      return await handleFetch(request, env, ctx);
+    } catch (e) {
+      return errResp(502, 'Worker exception: ' + String(e?.message ?? e));
+    }
+  },
+
+  // ── 스케줄드 (Cron) ────────────────────────────────────────────────
+  async scheduled(event, env, ctx) {
+    const cron = event.cron || '';
+    if (cron.startsWith('*/30')) {
+      ctx.waitUntil(runScheduled30Min(env).catch(() => {}));
+    } else {
+      ctx.waitUntil(runScheduledHourly(env).catch(() => {}));
+    }
+  },
+};
+
+// ─────────────────────────────────────────────
+// 핵심 fetch 핸들러
+// ─────────────────────────────────────────────
+async function handleFetch(request, env, ctx) {
+  const url    = new URL(request.url);
+  const host   = url.hostname;
+  const path   = url.pathname;
+  const t0     = Date.now();
+
+  // ── 실제 개인도메인 자동 감지 + 저장 (Cron이 수동 설정 없이 꺼내 씀) ──
+  // 첫 요청 때만 비동기로 저장하여 Cron, 사이트맵/RSS 생성에 자동 활용
+  ctx.waitUntil(autoDetectAndSaveSiteInfo(request, env, host, url).catch(() => {}));
+
+  // ── HTTP → HTTPS 강제 리디렉션 (항상 최우선) ──────────────────────
+  const httpsRedirect = enforceHttpsRedirect(request);
+  if (httpsRedirect) return httpsRedirect;
+
+  // ── 라우트 자동 감지 + SSL 도메인 등록 (비동기, 블로킹 없음) ──────
+  ctx.waitUntil(autoRegisterRoute(env, host).catch(() => {}));
+
+  // ── VPN/Proxy 자동 차단 ──────────────────────────────────────────
+  const vpnBlock = await enforceVpnBlock(request, env);
+  if (vpnBlock) return vpnBlock;
+
+  // ── IP 차단 체크 ──────────────────────────────────────────────────
+  // [버그 수정] Bingbot 등 검색엔진 크롤러가 (과거 VPN 오탐 로직으로 인해)
+  // 이미 state:block:* 에 등록되어 있는 경우, 코드를 고쳐도 기존에 저장된
+  // 차단 레코드 때문에 계속 403을 받는 문제가 있었다. 알려진 검색엔진
+  // 크롤러는 이 차단 체크를 우회시키고, 혹시 과거에 잘못 차단되어 있었다면
+  // 그 자리에서 즉시 해제해 재크롤링이 막히지 않게 한다.
+  const clientIp = request.headers.get('cf-connecting-ip') ||
+                   request.headers.get('x-forwarded-for') || '';
+  if (clientIp) {
+    if (isKnownSearchEngineCrawler(request)) {
+      ctx.waitUntil(isIpBlocked(env, clientIp).then(blocked => {
+        if (blocked) return unblockIp(env, clientIp);
+      }).catch(() => {}));
+    } else if (await isIpBlocked(env, clientIp)) {
+      recordMetric(403, Date.now() - t0);
+      return errResp(403, 'Forbidden');
+    }
+  }
+
+  // ── 관리 패널 ────────────────────────────────────────────────────
+  if (path === '/panel' || path.startsWith('/panel/')) {
+    return handlePanel(request, url, env, ctx);
+  }
+
+  // ── 디버그/관리 API ──────────────────────────────────────────────
+  if (path === '/__debug')       return debugInfo(url, env);
+  if (path === '/__metrics')     return new Response(JSON.stringify(getMetrics(), null, 2), jsonHeaders());
+  if (path === '/__purge_all')   return purgeAll(env);
+  if (path === '/__lb_status')   return lbStatus(env);
+  if (path === '/__cache_stats') return cacheStats(env);
+  if (path === '/__ads_click' && request.method === 'POST') return handleAdsClick(request, env);
+
+  // ── 사이트맵 / RSS 직접 서빙 (실제 요청 host=개인도메인 사용) ───
+  if (/^\/sitemap(-[^/]+)?\.xml$/i.test(path)) return handleSitemapRequest(env, url, host);
+  if (path === '/rss.xml' || path === '/atom.xml') return handleRssRequest(env, url, host);
+
+  // ── IndexNow 키 인증 파일 자동 서빙 ──────────────────────────────
+  // IndexNow API는 https://{host}/{key}.txt 에 키 값 그대로가 텍스트로
+  // 응답되어야만 소유권 인증이 성립한다(공식 스펙 요구사항). 이 Worker는
+  // Blogger를 프록시할 뿐 그 경로에 실제 파일을 올릴 방법이 없으므로,
+  // 지금까지는 Cloudflare Worker 설정에 INDEXNOW_KEY를 넣어도 인증 파일이
+  // 없어 IndexNow 핑이 사실상 항상 실패했다. env.INDEXNOW_KEY가 설정되어
+  // 있으면 해당 경로 요청을 Worker가 직접 그 키 값으로 응답해 자동으로
+  // 파일 형식 요구사항을 충족시킨다(사용자가 INDEXNOW_KEY만 넣으면 끝).
+  if (env.INDEXNOW_KEY && path === `/${env.INDEXNOW_KEY}.txt`) {
+    return new Response(env.INDEXNOW_KEY, {
+      status : 200,
+      headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=86400' },
+    });
+  }
+
+  // ── robots.txt 자동 생성 ─────────────────────────────────────────
+  // Blogger 기본 robots.txt는 커스텀 도메인이 아니라 Blogger 자체가 생성한
+  // sitemap 경로(대개 blogspot.com 기준)를 가리켜, 이 Worker가 만드는
+  // 실제 사이트맵(/sitemap.xml, SEO 슬러그 기반)과 어긋난다. Lighthouse/
+  // PageSpeed Insights의 SEO 감사 항목 중 "robots.txt가 유효한가"에
+  // 걸리고, 검색엔진에도 잘못된 사이트맵을 알리게 되므로 이 도메인
+  // 기준으로 올바른 사이트맵을 가리키는 robots.txt를 직접 생성해 서빙한다.
+  if (path === '/robots.txt') {
+    const body = `User-agent: *\nAllow: /\n\nSitemap: ${url.origin}/sitemap.xml\n`;
+    return new Response(body, {
+      status : 200,
+      headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' },
+    });
+  }
+
+  // ── Priority Routing (티어 결정) ─────────────────────────────────
+  const pRoute  = priorityRoute(request);
+  const isBot   = pRoute.tier === 1;
+
+  // ── Argo Smart Routing (지역 선택) ──────────────────────────────
+  const argoCtx = argoSelectRoute(request);
+
+  // ── CNAME 워밍 ──────────────────────────────────────────────────
+  ctx.waitUntil(warmCname(host).catch(() => {}));
+
+  // ── Rate Limit (봇은 제외) ───────────────────────────────────────
+  if (!isBot) {
+    const rlLimit = Number(env.RATE_LIMIT_PER_MIN) || 600;
+    const rl      = checkRateLimit(host, rlLimit);
+    if (!rl.allowed) {
+      recordMetric(429, Date.now() - t0);
+      return errResp(429, 'Too Many Requests');
+    }
+  }
+
+  // ── 정적 자산 / Passthrough ──────────────────────────────────────
+  if (isPassthrough(path, url)) {
+    const resp = await proxyPass(url, request);
+    recordMetric(resp.status, Date.now() - t0);
+    return resp;
+  }
+
+  // ── 캐시 우회 조건 ───────────────────────────────────────────────
+  if (shouldBypassCache(request, url, path)) {
+    const resp = await proxyPass(url, request);
+    recordMetric(resp.status, Date.now() - t0);
+    return resp;
+  }
+
+  // ── 슬러그 라우팅 (캐시 조회보다 먼저 판단) ─────────────────────────
+  // ✅ 원본(Blogspot) 경로가 이미 캐시에 있으면 그 캐시가 그대로 200으로
+  // 서빙되어 버려서, 슬러그가 확정되어 있어도 리디렉션되지 않고 계속
+  // Blogspot 경로가 노출되는 문제가 있었다. slug 조회는 이제 로컬 캐시
+  // (TTL 5초)로 매우 빠르므로, 캐시 조회보다 먼저 수행해서 "원본 경로 +
+  // 슬러그 존재"인 경우 캐시 확인 없이 즉시 301로 확정한다.
+  // [v9] 리디렉션 과다 수정: 이 지점에서의 301은 "원본(Blogspot) 경로에
+  // 접근했고, 이미 확정된 SEO 슬러그가 있는 경우" 단 하나의 케이스에서만
+  // 발생한다. 슬러그가 아직 없거나(신규 글) alias 조회가 KV eventual
+  // consistency로 인해 순간적으로 실패한 경우는 passthrough로 원본을 그대로
+  // 렌더링하고, 뒤쪽(라인 ~300 부근) HTML 파이프라인의 리디렉션 판단과
+  // 절대 겹치지 않도록 플래그(alreadyOnOriginPath)로 구분한다.
+  let slugRoute = { type: 'passthrough' };
+  let originPathForKV = path;
+  const requestedOriginalPath = isPostPath(path); // 이 요청 자체가 원본 경로인지
+  try {
+    slugRoute = await resolveSlugRoute(path, env, host);
+    if (slugRoute.type === 'redirect') {
+      recordMetric(301, Date.now() - t0);
+      return Response.redirect(new URL(slugRoute.titlePath, url).toString(), 301);
+    }
+    if (slugRoute.type === 'alias') {
+      originPathForKV = slugRoute.originPath;
+    }
+  } catch (_) {}
+
+  // ── Cache Reserve 조회 (L0 Cache API → L2 영속 스토리지) ──────────
+  // 쿠키 유무와 무관하게 캐시를 적용한다 (v7.1: 캐시 히트율 극대화).
+  if (isCacheable(request, null)) {
+    const cached = await cacheReserveGet(env, request);
+    if (cached) {
+      ctx.waitUntil(regionalCacheRecord(env, argoCtx.region, true).catch(() => {}));
+      recordMetric(200, Date.now() - t0);
+      if (!isBot) {
+        ctx.waitUntil(recordAnalytics(env, {
+          type: 'cache_hit', path, region: argoCtx.region, label: pRoute.label, tier: cached.tier,
+        }).catch(() => {}));
+      }
+      // L2에서 히트했다면 L0(엣지 캐시)도 채워서, 같은 노드의 다음 요청은
+      // L2 호출 없이 즉시 응답되게 한다 (응답 지연 없이 백그라운드 처리).
+      if (cached.warmL0) ctx.waitUntil(cached.warmL0().catch(() => {}));
+      // SWR: 백그라운드 재검증 (만료 윈도우 진입 시)
+      if (cached.isSwr) {
+        ctx.waitUntil(backgroundRevalidate(request, env, url, argoCtx, pRoute).catch(() => {}));
+      }
+      return cached.response;
+    }
+    ctx.waitUntil(regionalCacheRecord(env, argoCtx.region, false).catch(() => {}));
+  }
+
+  // ── Load Balancer ────────────────────────────────────────────────
+  if (!lbAcquire()) {
+    recordMetric(503, Date.now() - t0);
+    return new Response('Service busy — please retry', {
+      status : 503,
+      headers: { 'Retry-After': '2', 'cache-control': 'no-store' },
+    });
+  }
+
+  // ── Origin Fetch (Argo 경로 사용) ───────────────────────────────
+  let fetchUrl = new URL(url.toString());
+  if (slugRoute.type === 'alias') fetchUrl.pathname = slugRoute.originPath;
+
+  let originResp;
+  const fetchT0 = Date.now();
+  try {
+    originResp = await retryOriginFetch(() => bloggerFetch(fetchUrl, request.headers, argoCtx));
+
+    // [v9] 안전망: 슬러그 경로(alias 미해결 상태)로 Blogger에 그대로 요청을
+    // 보냈다가 404가 난 경우, KV 분산 전파 지연으로 방금 막 생성된 slug
+    // alias를 이 요청이 못 봤을 가능성이 있다. 이때만 1회 재조회해서
+    // 있으면 즉시 원본 경로로 다시 fetch한다 (없으면 그대로 404 처리).
+    if (originResp.status === 404 && slugRoute.type === 'passthrough' &&
+        !requestedOriginalPath && /^\/[^/]+$/.test(decodePathSafe(path)) &&
+        !isReservedFlatPath(decodePathSafe(path))) {
+      const retryOrigin = await slugAliasGet(env, host, decodePathSafe(path)).catch(() => null);
+      if (retryOrigin) {
+        fetchUrl.pathname = retryOrigin;
+        originPathForKV   = retryOrigin;
+        originResp = await retryOriginFetch(() => bloggerFetch(fetchUrl, request.headers, argoCtx));
+      }
+    }
+  } catch (e) {
+    lbRelease();
+    // ── 장애 격리: Origin(Blogger) 자체가 응답을 못 줄 때, 만료된 캐시라도
+    // 있으면 그걸 서빙해서 사이트를 살린다. 캐시도 없으면 502를 반환한다.
+    // 서킷이 열려 있어 재시도 없이 즉시 실패한 경우(e.circuitOpen)에도
+    // 동일하게 stale 폴백을 우선 시도한다 — 이게 "과부하 시 사용자에게는
+    // 최대한 정상처럼 보이게" 하는 핵심 장치다.
+    if (isCacheable(request, null)) {
+      const stale = await cacheReserveGetStaleFallback(env, request).catch(() => null);
+      if (stale) {
+        recordMetric(200, Date.now() - t0);
+        return stale;
+      }
+    }
+    recordMetric(502, Date.now() - t0);
+    return errResp(502, 'Fetch failed: ' + String(e?.message ?? e));
+  }
+  lbRelease();
+  argoRecordLatency(argoCtx.region, Date.now() - fetchT0);
+
+  // 3xx 그대로 (단, Location의 스킴/호스트는 항상 커스텀 도메인+https로 보정)
+  if (originResp.status >= 300 && originResp.status < 400) {
+    recordMetric(originResp.status, Date.now() - t0);
+    return stripInternalHeaders(originResp, url);
+  }
+  if (originResp.status >= 500) {
+    // ── 장애 격리: Origin이 5xx를 반환해도 stale 캐시가 있으면 그걸 서빙
+    if (isCacheable(request, null)) {
+      const stale = await cacheReserveGetStaleFallback(env, request).catch(() => null);
+      if (stale) {
+        recordMetric(200, Date.now() - t0);
+        return stale;
+      }
+    }
+    // ✅ [Error 525 수정] retryOriginFetch/retryAsync가 이미 520~527 계열을
+    // 재시도했음에도 여전히 실패한 경우, 이전에는 originResp.status(예: 525)를
+    // 그대로 방문자에게 노출했다. 525는 "Cloudflare 엣지 ↔ origin(ghs.google.com)
+    // 간 TLS 핸드셰이크 실패"를 뜻하는 Cloudflare 전용 합성 코드로, 방문자
+    // 브라우저에 그대로 보여줘 봐야 이해할 수 없고 SEO/방문자 신뢰도만
+    // 떨어뜨린다. 이 Worker는 방문자에게 항상 HTTPS로 응답하는(Flexible
+    // 모드 대응) 프록시이므로, origin 쪽 TLS 상태와 무관하게 방문자에게는
+    // 표준 502(Bad Gateway)로 정규화해서 반환한다. 실제 원인(525 등)은
+    // 로그/메트릭에만 남긴다.
+    const normalizedStatus = originResp.status >= 520 ? 502 : originResp.status;
+    recordMetric(originResp.status, Date.now() - t0);
+    return errResp(normalizedStatus, 'Origin temporarily unavailable (upstream ' + originResp.status + ')');
+  }
+  if (!isHtml(originResp) || !originResp.ok) {
+    recordMetric(originResp.status, Date.now() - t0);
+    return stripInternalHeaders(originResp, url);
+  }
+
+  // ── HTML 변환 파이프라인 ────────────────────────────────────────
+  let html;
+  try { html = await originResp.text(); }
+  catch (e) { return errResp(502, 'Body read failed'); }
+
+  let pageCtx = null;
+  let result  = html;
+  try {
+    pageCtx = await extractPageContext(html, url);
+    // ✅ 슬러그 KV 업데이트를 transformHtml 전에 실행
+    // → titlePath가 ctx에 채워져 canonical, seo-features에 즉시 반영됨
+    if (pageCtx && isPostPath(originPathForKV)) {
+      const originUrl = new URL(originPathForKV, url).toString();
+      await updateSlugKV(pageCtx, originPathForKV, env, originUrl, host).catch(() => {});
+    }
+    // [v9] 리디렉션 과다 수정 — 이 지점의 301은 "지금 이 요청이 실제로
+    // 원본(Blogspot) 경로로 들어왔을 때"만 발생해야 한다. 이전 버전은
+    // slugRoute.type === 'alias'로 이미 슬러그 URL을 통해 들어온 요청에도
+    // 같은 조건(path !== pageCtx.titlePath)을 적용해서, alias 조회가 KV
+    // 전파 지연으로 실패했거나 슬러그가 막 재계산된 순간에는 슬러그
+    // URL(path) 자체가 방금 만들어진 titlePath와 문자열이 달라 다시 301을
+    // 쏘는 경우가 있었다 — 이게 리디렉션 루프의 실질적 원인이었다.
+    //
+    // 이제는 requestedOriginalPath(요청이 원본 /YYYY/MM/*.html 형태인 경우)
+    // 일 때만 리디렉션한다. 슬러그(alias) 경로로 들어온 요청은 titlePath가
+    // 재계산되어 문자열이 바뀌었더라도 그 자리에서 그대로 렌더링해서
+    // 사용자에게는 항상 정확히 1회 이하의 리디렉션만 보이게 한다. 다음
+    // 방문부터는 sitemap/RSS/내부 링크가 최신 슬러그를 가리키므로 자연히
+    // 수렴한다.
+    if (pageCtx?.titlePath && requestedOriginalPath && path !== pageCtx.titlePath) {
+      recordMetric(301, Date.now() - t0);
+      return Response.redirect(new URL(pageCtx.titlePath, url).toString(), 301);
+    }
+    result  = await transformHtml(html, pageCtx, url, env, pRoute, request);
+    if (!result || typeof result !== 'string') result = html;
+  } catch (_) { result = html; pageCtx = null; }
+
+  // ── ETag / 304 ───────────────────────────────────────────────────
+  // 구글봇 등 크롤러도 ETag/If-None-Match 조건부 요청을 지원한다.
+  // (Google 공식: 크롤링 인프라가 ETag/Last-Modified 캐싱을 지원하며,
+  //  이를 활용하면 크롤링 효율이 올라간다 — SEO 랭킹 직접 요인은 아니지만
+  //  크롤 예산을 아껴주는 효과가 있어 손해는 없고 이득만 있다.)
+  // [v10] 렌더링된 HTML 전체(수십~수백KB)를 매 요청 해싱하는 핫패스이므로
+  // WASM 가속 해시(wasmCore.fnv1a32Hex)를 사용한다 — 대용량 입력은 내부적으로
+  // 128KB 청크 스트리밍으로 처리되어 JS 문자별 순회보다 훨씬 빠르다.
+  let etag = '';
+  try {
+    etag = `"${await wasmCore.fnv1a32Hex(result)}"`;
+    const ifNoneMatch = request.headers.get('if-none-match');
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      recordMetric(304, Date.now() - t0);
+      return new Response(null, { status: 304, headers: { etag, 'cache-control': 'no-store' } });
+    }
+  } catch (_) { etag = ''; }
+
+  // ── 비동기 후처리 ───────────────────────────────────────────────
+  // (슬러그 KV 업데이트는 이미 transformHtml 전에 완료됨)
+
+  // 페이지 타입별 TTL 적용 (포스트 1h, 페이지 4h, 홈 30분, 라벨 1h)
+  const pageType       = pageCtx?.type || detectPageType(url);
+  const pageTtl        = getPageTypeTtl(pageType);
+  const effectiveRoute = { ...pRoute, maxAge: pageTtl };
+  const cacheControl   = buildCacheControl(effectiveRoute, isBot);
+
+  // Cache Reserve 저장 (성공 응답만, 봇 트래픽으로 캐시를 오염시키지 않기
+  // 위해 쓰기는 사람 방문자 기준으로만 — 단, 읽기는 모두에게 적용됨)
+  // ✅ 이전에는 ttl 옵션을 넘기지 않아 모든 페이지가 기본 30분으로만
+  // 저장되었다. 페이지 타입별로 계산된 pageTtl(포스트 1h·페이지 4h 등)을
+  // 그대로 전달해서, 자주 안 바뀌는 콘텐츠는 더 오래 캐시되어 origin
+  // 요청 빈도와 응답 지연이 함께 줄어들도록 한다.
+  if (!isBot && pageCtx && !(await shouldHideAds(request, env).catch(() => false))) {
+    const respForCache = new Response(result, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+    ctx.waitUntil(
+      cacheReservePut(env, request, respForCache, { region: argoCtx.region, ttl: pageTtl }).catch(() => {})
+    );
+  }
+
+  ctx.waitUntil(recordAnalytics(env, {
+    type: 'page_view', path, region: argoCtx.region, label: pRoute.label,
+    latencyMs: Date.now() - t0,
+  }).catch(() => {}));
+
+  recordMetric(200, Date.now() - t0);
+
+  // Server-Timing 헤더 (Core Web Vitals 분석 + 크롤러 품질 신호)
+  const serverTiming = buildServerTimingHeader({
+    cacheHit : false,
+    workerMs : Date.now() - t0,
+  });
+
+  // IndexNow 핑 — 신규 포스트 발견 시 Bing/Yandex에 즉시 알림 (비동기)
+  if (pageType === 'post' && pageCtx && env.INDEXNOW_KEY && !isBot) {
+    ctx.waitUntil(pingIndexNow(url.toString(), env.INDEXNOW_KEY, host).catch(() => {}));
+  }
+
+  return new Response(result, {
+    status : 200,
+    headers: buildResponseHeaders(etag, cacheControl, { serverTiming }),
+  });
+}
+
+// ── 백그라운드 재검증 (SWR) ─────────────────────────────────────────
+async function backgroundRevalidate(request, env, url, argoCtx, pRoute) {
+  try {
+    // 서킷이 열려 있으면(origin이 이미 힘든 상태) 재검증용 추가 요청을
+    // 보내지 않고 조용히 스킵한다 — SWR은 "여유가 있을 때 갱신"하는
+    // 최적화이므로, origin이 죽어가는 상황에서는 자원을 아끼는 쪽이 맞다.
+    const freshResp = await retryOriginFetch(() => bloggerFetch(url, request.headers, argoCtx), 1);
+    if (!freshResp.ok || !isHtml(freshResp)) return;
+    const html    = await freshResp.text();
+    const pageCtx = await extractPageContext(html, url);
+    const result  = await transformHtml(html, pageCtx, url, env, pRoute, request);
+    const respForCache = new Response(result, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+    await cacheReservePut(env, request, respForCache, { region: argoCtx.region });
+  } catch (_) {}
+}
+
+// ─────────────────────────────────────────────
+// HTML 변환 파이프라인 (SEO 주입 포함)
+// ─────────────────────────────────────────────
+async function transformHtml(html, ctx, url, env, pRoute, request = null) {
+  let o = html;
+  o = safeTransform(o, stripMobileParam);
+  o = safeTransform(o, enforceHttps);
+  o = safeTransform(o, h => injectMetaDescription(h, ctx));
+  o = safeTransform(o, h => injectCanonical(h, ctx, url));
+  o = safeTransform(o, h => injectSeoTags(h, ctx));
+  o = safeTransform(o, h => injectSearchEngineTags(h, ctx, env));
+  o = safeTransform(o, injectPerformanceOptimizations);
+  o = safeTransform(o, h => injectDeviceOptimizations(h, pRoute));
+
+  // ── 추가 SEO 기능 20+ (목차/읽기시간 제외) ──────────────────────
+  // env 대신 autoEnv를 넘겨 자동감지 host/title이 함수 내부에서 사용되도록
+  try {
+    // [버그 수정] 이전에는 resolveSiteBase(env)가 참조하는 전역 메모리
+    // 캐시(_detectedHost)를 썼는데, 이 Worker는 여러 개인도메인을
+    // 동시에 서빙하므로 그 값이 "다른 사이트"에서 감지된 host일 수
+    // 있었다. 그러면 canonical/og:url 등 SEO 태그가 엉뚱한 도메인으로
+    // 찍히는 문제가 생긴다. 지금 처리 중인 요청의 실제 host(url.origin)를
+    // 최우선으로 사용해 항상 이 요청과 같은 사이트로 고정한다.
+    const resolvedBase = url.origin || resolveSiteBase(env);
+    const autoEnv = (!env.SITE_BASE_URL || env.SITE_BASE_URL === '' || env.SITE_BASE_URL === 'https://example.com')
+      ? { ...env, SITE_BASE_URL: resolvedBase || undefined }
+      : env;
+    o = safeTransform(o, h => applyAllSeoFeatures(h, ctx, url, autoEnv));
+  } catch (_) {}
+
+  // 스키마 마크업 (비동기, AI FAQ 포함)
+  try {
+    const schemas = await buildSchemas(o, ctx, url, env);
+    o = injectSchemaMarkup(o, schemas);
+  } catch (_) {}
+
+  if (request && await shouldHideAds(request, env).catch(() => false)) {
+    o = safeTransform(o, hideAds);
+  } else {
+    o = safeTransform(o, injectAdSenseClickGuard);
+  }
+  return o;
+}
+
+// ─────────────────────────────────────────────
+// 슬러그 라우팅
+// ─────────────────────────────────────────────
+function isPostPath(path) {
+  return /\/\d{4}\/\d{2}\/[^/]+\.html$/.test(path) || /^\/p\/[^/]+$/.test(path);
+}
+
+function isReservedFlatPath(p) {
+  if (p === '/' || p === '') return true;
+  if (p.startsWith('/feeds/') || p.startsWith('/b/') || p.startsWith('/admin')) return true;
+  // /search, /search/label/* 등 Blogger 네이티브 경로 — 슬러그 라우팅에서 제외해 리디렉션 루프 차단
+  if (p.startsWith('/search') || p === '/ncr') return true;
+  // 다중 세그먼트 경로(예: /search/label/여행)는 isReservedFlatPath 외에
+  // resolveSlugRoute의 /^\/[^/]+$/ 체크에도 걸리지 않으므로 이중 안전장치
+  if (p.startsWith('/p/')) return true;
+  if (p === '/__debug' || p === '/__metrics' || p === '/__purge_all' ||
+      p === '/__lb_status' || p === '/__cache_stats') return true;
+  if (/^\/sitemap(-[^/]+)?\.xml$/i.test(p)) return true;
+  if (p === '/atom.xml' || p === '/rss.xml') return true;
+  if (p === '/panel' || p.startsWith('/panel/')) return true;
+  if (/\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|eot|mp4|webm|xml|txt|json|html?)$/i.test(p)) return true;
+  return false;
+}
+
+// [v6.4 수정] URL.pathname은 한글 등 비ASCII 문자를 항상 퍼센트 인코딩된
+// 형태(%EC%A0%9C...)로 반환한다. 반면 슬러그 저장(upsertSlug)은 디코딩된
+// 한글 그대로("/제주도-여행-코스")를 키로 사용한다. 이 불일치 때문에
+// 슬러그가 KV/Redis에 정상 저장되어도 라우팅 조회에서 항상 찾지 못해
+// 404로 떨어지는 문제가 있었다. 조회 전에 반드시 디코딩해서 키를 맞춘다.
+function decodePathSafe(path) {
+  try { return decodeURIComponent(path); }
+  catch (_) { return path; } // 잘못된 인코딩이면 원본 그대로 (안전장치)
+}
+
+async function resolveSlugRoute(rawPath, env, host) {
+  const path = decodePathSafe(rawPath);
+
+  // 다중 세그먼트 경로 — 포스트(/YYYY/MM/*)만 허용
+  if (path.indexOf('/', 1) !== -1) {
+    if (!isPostPath(path)) return { type: 'passthrough' };
+  }
+
+  if (isPostPath(path)) {
+    const rec = await slugOriginGet(env, host, path);
+    // ✅ titlePath가 있고 현재 경로와 다르면 항상 SEO 슬러그로 리디렉션
+    if (rec?.titlePath && rec.titlePath !== path) {
+      return { type: 'redirect', titlePath: rec.titlePath };
+    }
+    return { type: 'passthrough' };
+  }
+
+  // 평탄 경로 (/some-slug) — alias 조회
+  if (/^\/[^/]+$/.test(path) && !isReservedFlatPath(path)) {
+    const originPath = await slugAliasGet(env, host, path);
+    if (originPath && originPath !== path) {
+      return { type: 'alias', originPath };
+    }
+    // ✅ alias 없는 flat path → 슬러그 미등록 상태, passthrough (redirect 루프 방지)
+  }
+  return { type: 'passthrough' };
+}
+
+async function updateSlugKV(pageCtx, originPath, env, originUrl, host) {
+  if (!['post', 'page'].includes(pageCtx.type) || !pageCtx.title) return;
+  if (!isPostPath(originPath)) return;
+  const titleSlug = await wasmCore.generateSlug(pageCtx.title);
+  if (!titleSlug || titleSlug === 'post' || titleSlug === 'untitled') return;
+  // ✅ ctx.titlePath 에도 저장 (SEO canonical, 스키마 마크업에 사용됨)
+  pageCtx.titlePath = '/' + titleSlug;
+  await upsertSlug(env, host, originPath, pageCtx.title, titleSlug);
+  // ✅ 원본(Blogspot) 경로로 저장된 옛 캐시가 남아있으면, 슬러그가 확정된
+  // 뒤에도 그 캐시가 계속 200으로 서빙되어 리디렉션이 무시되는 문제가
+  // 있었다. 슬러그가 (재)확정될 때마다 원본 경로 캐시를 즉시 지운다.
+  if (originUrl) {
+    cacheReserveDeleteUrl(env, originUrl).catch(() => {});
+  }
+}
+
+// ─────────────────────────────────────────────
+// Cron 작업
+// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// 자동 캐싱 조절 시스템
+// ─────────────────────────────────────────────
+// 30분마다: 캐시 전체 초기화 → RSS 재생성 → 재량 TTL로 재캐싱
+// 캐시 생존 시간(TTL) 정책 (요청사항 준수):
+//   포스트  : 최대 1시간  (3600s)
+//   정적페이지: 최대 4시간 (14400s)
+//   홈     : 최대 30분  (1800s)
+//   라벨    : 1시간      (3600s)
+//   RSS    : 1시간      (3600s)
+//   사이트맵: 2시간      (7200s)
+
+async function runScheduled30Min(env) {
+  // Step 1: 필수 캐시 전체 초기화 (30분마다 강제)
+  await cacheReservePurge(env).catch(() => {});
+
+  // Step 2: L0 Cache API 플러시 (엣지 캐시)
+  try {
+    if (typeof caches !== 'undefined' && caches.default) {
+      // Workers Cache API: 전체 삭제 API 없음 → 주요 키만 무효화
+      // (L2 purge로 SWR이 트리거되어 자연스럽게 갱신됨)
+    }
+  } catch (_) {}
+
+  // Step 3: RSS 재생성 (TTL: 1시간)
+  await runRssGeneration(env).catch(() => {});
+
+  // Step 4: 다음 캐시 생존 시간 환경에 기록 (재량 — 현재 시각 기준)
+  await recordCacheReset(env).catch(() => {});
+}
+
+async function runScheduledHourly(env) {
+  // 사이트맵 재생성 (TTL: 2시간)
+  await runSitemapGeneration(env).catch(() => {});
+  // 슬러그 감사
+  await runSlugAudit(env).catch(() => {});
+  // 만료된 캐시 항목 정리
+  await cacheReservePurge(env).catch(() => {});
+  // 검색엔진 핑 (사이트맵 갱신 알림) — 등록된 모든 사이트 각각에 대해 핑
+  const pingHosts = await collectSiteHosts(env).catch(() => []);
+  for (const h of pingHosts) {
+    await pingSearchEngines('https://' + h + '/sitemap.xml').catch(() => {});
+  }
+  // ── SSL/TLS 인증서 상태 캐시 갱신 (API 불필요, TLS 핸드셰이크로 직접 확인) ──
+  await cronRefreshCertStatus(env).catch(() => {});
+  await runGoogleSync(env).catch(() => {});
+}
+
+// 캐시 초기화 타임스탬프 기록 (관리 패널 표시용)
+async function recordCacheReset(env) {
+  const { kvSet } = await import('./src/store.js').catch(() => ({ kvSet: async () => {} }));
+  const record = JSON.stringify({
+    ts         : Date.now(),
+    nextResetAt: Date.now() + 30 * 60 * 1000, // 다음 초기화: 30분 후
+    ttlPolicy  : { post: 3600, page: 14400, home: 1800, label: 3600, rss: 3600, sitemap: 7200 },
+  });
+  await kvSet(env, 'state:cache_reset_log', record, 3600);
+}
+
+async function runSitemapGeneration(env) {
+  // [버그 수정] 이전에는 자동감지된 "단 하나의" 호스트로만 사이트맵을
+  // 만들어 여러 개인도메인을 서빙하는데도 사실상 한 사이트 것만 계속
+  // 덮어썼다. 이제 등록된 모든 사이트 각각에 대해 독립적으로 생성한다.
+  const hosts = await collectSiteHosts(env);
+  if (!hosts.length) return; // 등록된 사이트가 없으면 스킵 (example.com 방지)
+  for (const h of hosts) {
+    await generateSitemap(env, 'https://' + h).catch(() => {});
+  }
+}
+
+async function runRssGeneration(env) {
+  const hosts = await collectSiteHosts(env);
+  if (!hosts.length) return;
+  for (const h of hosts) {
+    const title = await resolveSiteTitleAsync(env, h);
+    await generateRss(env, 'https://' + h, title).catch(() => {});
+  }
+}
+
+// 이 Worker가 서빙 중인 "모든" 개인도메인 목록을 반환한다.
+// 우선순위:
+//   1. 환경변수(SITE_BASE_URL/SITE_HOST)로 단일 도메인이 명시 설정된 경우 → 그것만
+//   2. ssl:routes에 자동/수동 등록된 모든 도메인 (여러 사이트를 이 Worker
+//      하나가 서빙하는 실제 구성을 그대로 반영)
+//   3. 위 둘 다 비어있으면 레거시 단일 감지값(state:site_host)으로 폴백
+async function collectSiteHosts(env) {
+  if (env.SITE_BASE_URL && env.SITE_BASE_URL !== 'https://example.com' && env.SITE_BASE_URL !== '') {
+    try { return [new URL(env.SITE_BASE_URL).hostname]; } catch (_) {}
+  }
+  if (env.SITE_HOST && env.SITE_HOST !== '') {
+    return [env.SITE_HOST.replace(/^https?:\/\//, '').replace(/\/$/, '')];
+  }
+
+  try {
+    const routes = await listRoutes(env);
+    const hosts  = (routes || [])
+      .map(r => r.host)
+      .filter(h => h && !isBlogspotDomain(h) && !isInternalHost(h));
+    if (hosts.length) return Array.from(new Set(hosts));
+  } catch (_) {}
+
+  // 라우트 목록이 아직 없으면(첫 배포 직후 등) 레거시 단일 감지값으로 폴백
+  const base = await resolveSiteBaseAsync(env);
+  try { return base ? [new URL(base).hostname] : []; } catch (_) { return []; }
+}
+
+// ─────────────────────────────────────────────
+// 개인도메인 자동 감지 & 저장 시스템
+// ─────────────────────────────────────────────
+// 수동 설정(SITE_BASE_URL 등) 없이 실제 요청 host를 자동으로 학습한다.
+//
+// 동작 원리:
+//   1. 매 요청에서 host를 추출 → KV 'state:site_host'에 자동 저장
+//   2. Cron 작업(사이트맵/RSS 생성)은 KV에서 꺼내 사용
+//   3. 환경변수(SITE_BASE_URL)가 있으면 그게 최우선 (명시 설정 존중)
+//   4. Blogger 공식 subdomain(*.blogspot.com)은 개인도메인으로 인정 안 함
+//      → GHS CNAME이 확인된 호스트만 '개인도메인'으로 저장
+//
+// 결과: 사용자가 아무것도 설정하지 않아도, 첫 번째 HTTP 요청이 들어온 순간부터
+//       올바른 개인도메인이 자동으로 학습되어 모든 기능에 즉시 반영된다.
+
+// 인스턴스 메모리 캐시 (저장된 host, 최대 1시간 유효)
+let _detectedHost = null;
+let _detectedHostTs = 0;
+const DETECTED_HOST_TTL_MS = 3600_000; // 1시간
+
+// 블로그스팟 공식 subdomain — 개인도메인 감지에서 제외
+const BLOGSPOT_PATTERNS = [
+  /\.blogspot\.(com|co\.kr|jp|de|fr|in|com\.br|com\.au|co\.uk|kr)$/i,
+  /^[\w-]+\.blogspot\.com$/i,
+];
+
+function isBlogspotDomain(host) {
+  return BLOGSPOT_PATTERNS.some(p => p.test(host));
+}
+
+// 로컬/내부 호스트 제외
+function isInternalHost(host) {
+  return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.workers.dev')
+      || host.endsWith('.cloudflareworkers.com') || host.startsWith('192.168.')
+      || host.startsWith('10.') || !host.includes('.');
+}
+
+async function autoDetectAndSaveSiteInfo(request, env, host, url) {
+  // 이미 캐시에 있고 만료 안 됐으면 스킵 (DO/KV 불필요 호출 방지)
+  if (_detectedHost && Date.now() - _detectedHostTs < DETECTED_HOST_TTL_MS) return;
+
+  // blogspot.com, workers.dev, localhost 제외
+  if (isBlogspotDomain(host) || isInternalHost(host)) return;
+
+  // 환경변수가 이미 명시 설정됐으면 스킵 (수동 > 자동)
+  if (env.SITE_BASE_URL && env.SITE_BASE_URL !== 'https://example.com' && env.SITE_BASE_URL !== '') return;
+
+  // ── ① 라우트 목록(ssl:routes) 우선 탐지 — API 없이 설정 제로 ────────
+  // autoRegisterRoute()가 매 요청마다 host를 ssl:routes 에 자동 저장하므로
+  // state:site_host 에 중복 저장하지 않고 라우트에서 꺼내 쓴다.
+  try {
+    const routeHost = await resolveHostFromRoutes(env);
+    if (routeHost) {
+      _detectedHost   = routeHost;
+      _detectedHostTs = Date.now();
+      // 라우트엔 사이트 제목이 없으므로 별도 추출
+      await saveTitleIfNeeded(env, url, host).catch(() => {});
+      return;
+    }
+  } catch (_) {}
+
+  // ── ② 라우트에 없으면 기존 KV 저장 방식 유지 (최초 요청 시 폴백) ───
+  const saveHost = async () => {
+    const { kvGet, kvSet } = await import('./src/store.js').catch(() => ({ kvGet: async () => null, kvSet: async () => {} }));
+    const existing = await kvGet(env, 'state:site_host');
+    if (existing === host) {
+      _detectedHost   = host;
+      _detectedHostTs = Date.now();
+      return;
+    }
+    await kvSet(env, 'state:site_host', host, 86400);
+    _detectedHost   = host;
+    _detectedHostTs = Date.now();
+  };
+
+  await Promise.all([saveHost(), saveTitleIfNeeded(env, url, host).catch(() => {})]);
+}
+
+// 사이트 제목 자동 추출 헬퍼 (24h 캐시, 홈 요청 시에만)
+// [버그 수정] 이전에는 'state:site_title' 전역 키 하나에만 저장해 여러
+// 사이트의 제목이 서로 덮어썼다. 이제 host별로도 함께 저장한다.
+async function saveTitleIfNeeded(env, url, host) {
+  if (env.SITE_TITLE && env.SITE_TITLE !== '') return;
+  const { kvGet, kvSet } = await import('./src/store.js').catch(() => ({ kvGet: async () => null, kvSet: async () => {} }));
+  const perSiteKey = host ? 'state:site_title:' + host : null;
+  const existingTitle = perSiteKey ? await kvGet(env, perSiteKey) : await kvGet(env, 'state:site_title');
+  if (existingTitle) return;
+  if (url.pathname !== '/' && url.pathname !== '') return;
+  try {
+    const resp = await fetch(url.origin + '/', {
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
+      cf: { cacheTtl: 0, cacheEverything: false },
+    });
+    if (!resp.ok) return;
+    const html = await resp.text();
+    const m = html.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
+    if (m && m[1]) {
+      const title = m[1].trim()
+        .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#?\w+;/g,'');
+      if (title) {
+        if (perSiteKey) await kvSet(env, perSiteKey, title, 86400);
+        await kvSet(env, 'state:site_title', title, 86400); // 하위 호환용 전역 키도 갱신
+      }
+    }
+  } catch (_) {}
+}
+
+// 사이트 베이스 URL 결정
+// 우선순위: ①환경변수(명시) → ②라우트 목록(자동, API 없이) → ③KV state:site_host → ④빈 문자열
+// ②번이 핵심: ssl:routes KV에 자동 저장된 라우트 목록에서 실제 도메인을 API 없이 탐지
+async function resolveSiteBaseAsync(env) {
+  // ① 환경변수 명시 설정 최우선
+  if (env.SITE_BASE_URL && env.SITE_BASE_URL !== 'https://example.com' && env.SITE_BASE_URL !== '') {
+    return env.SITE_BASE_URL.replace(/\/$/, '');
+  }
+  if (env.SITE_HOST && env.SITE_HOST !== '') {
+    return 'https://' + env.SITE_HOST.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  }
+  // ② 라우트 목록(ssl:routes) 기반 자동 탐지 — 설정 제로, API 없이
+  try {
+    const routeHost = await resolveHostFromRoutes(env);
+    if (routeHost) {
+      _detectedHost   = routeHost;
+      _detectedHostTs = Date.now();
+      return 'https://' + routeHost;
+    }
+  } catch (_) {}
+  // ③ 메모리 캐시 (이전 요청 자동 감지)
+  if (_detectedHost && Date.now() - _detectedHostTs < DETECTED_HOST_TTL_MS) {
+    return 'https://' + _detectedHost;
+  }
+  // ④ KV state:site_host (기존 자동감지 저장값 — 하위 호환)
+  try {
+    const { kvGet } = await import('./src/store.js').catch(() => ({ kvGet: async () => null }));
+    const savedHost = await kvGet(env, 'state:site_host');
+    if (savedHost && !isBlogspotDomain(savedHost) && !isInternalHost(savedHost)) {
+      _detectedHost   = savedHost;
+      _detectedHostTs = Date.now();
+      return 'https://' + savedHost;
+    }
+  } catch (_) {}
+  // ⑤ 폴백: 빈 문자열 (사이트맵 생성 스킵)
+  return '';
+}
+
+// 사이트 제목 자동 결정 (환경변수 없으면 KV 자동감지값 사용)
+// [버그 수정] state:site_title도 site_host와 마찬가지로 host 구분 없는
+// 단일 전역 키였다. 여러 사이트를 서빙할 때 모든 사이트의 RSS <title>이
+// 마지막으로 감지된 한 사이트의 제목으로 동일하게 나오는 문제가 있었다.
+// host가 주어지면 사이트별 키(state:site_title:{host})를 우선 사용하고,
+// 없으면 과거 버전과의 호환을 위해 전역 키로 폴백한다.
+async function resolveSiteTitleAsync(env, host) {
+  if (env.SITE_TITLE && env.SITE_TITLE !== '') return env.SITE_TITLE;
+  try {
+    const { kvGet } = await import('./src/store.js').catch(() => ({ kvGet: async () => null }));
+    if (host) {
+      const savedPerSite = await kvGet(env, 'state:site_title:' + host);
+      if (savedPerSite) return savedPerSite;
+    }
+    const saved = await kvGet(env, 'state:site_title');
+    if (saved) return saved;
+  } catch (_) {}
+  return 'BloggerSEO';
+}
+
+// 동기 버전 — 메모리 캐시 값만 사용 (Cron에서는 비동기 버전 사용)
+// 비동기 resolveSiteBaseAsync()가 먼저 호출되어 _detectedHost 가 채워진 상태라면
+// 라우트 기반 감지 결과도 여기서 즉시 반환된다 (캐시 공유).
+function resolveSiteBase(env) {
+  if (env.SITE_BASE_URL && env.SITE_BASE_URL !== 'https://example.com' && env.SITE_BASE_URL !== '') {
+    return env.SITE_BASE_URL.replace(/\/$/, '');
+  }
+  if (env.SITE_HOST && env.SITE_HOST !== '') {
+    return 'https://' + env.SITE_HOST.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  }
+  // 메모리 캐시 (resolveSiteBaseAsync가 라우트 목록에서 채워둔 값 포함)
+  if (_detectedHost && Date.now() - _detectedHostTs < DETECTED_HOST_TTL_MS) {
+    return 'https://' + _detectedHost;
+  }
+  return '';
+}
+
+async function runSlugAudit(env) {
+  const { kvScan, kvGetJson } = await import('./src/store.js');
+  const keys = await kvScan(env, 'slug:origin:*', 1000);
+  for (const key of keys) {
+    try {
+      const data = await kvGetJson(env, key);
+      if (!data?.title) continue;
+      // 키 형식: slug:origin:{site}:{originPath} — 사이트별로 격리되어 있으므로
+      // 감사(재확정)도 반드시 같은 사이트 네임스페이스에 다시 써야 한다.
+      const m = key.match(/^slug:origin:([^:]+):(.+)$/);
+      if (!m) continue;
+      const site       = m[1];
+      const originPath = m[2];
+      const newSlug = await wasmCore.generateSlug(data.title);
+      if (!newSlug || newSlug === 'post') continue;
+      const newTitlePath  = '/' + newSlug;
+      if (newTitlePath !== data.titlePath) {
+        await upsertSlug(env, site, originPath, data.title, newSlug);
+      } else {
+        // ✅ 슬러그 값 자체는 안 바뀌었어도, 이 감사 스캔에서 발견된
+        // 매핑은 여전히 유효/사용 중이라는 뜻이므로 TTL을 갱신(touch)한다.
+        // 이게 없으면 별칭(alias) URL로만 방문되는 인기 글의 매핑이
+        // 30일 상한에 걸려 소멸될 수 있다.
+        await touchSlug(env, site, originPath, data);
+      }
+    } catch (_) {}
+  }
+}
+
+// ─────────────────────────────────────────────
+// CNAME 검증
+// ─────────────────────────────────────────────
+async function warmCname(host) {
+  const cached = cnameGet(host);
+  if (cached !== null) return cached;
+  const ok = await checkCnameGhs(host).catch(() => false);
+  cnameSet(host, ok);
+  return ok;
+}
+
+async function checkCnameGhs(host) {
+  let current = host;
+  const seen  = new Set();
+  for (let i = 0; i < 10; i++) {
+    if (seen.has(current)) break;
+    seen.add(current);
+    let cname;
+    try { cname = await dnsCname(current); } catch (_) { break; }
+    if (!cname) break;
+    const n = cname.replace(/\.$/, '').toLowerCase();
+    if (n === GHS_TARGET) return true;
+    current = n;
+  }
+  return false;
+}
+
+async function dnsCname(host) {
+  const resp = await fetch(`${DOH_URL}?name=${encodeURIComponent(host)}&type=CNAME`, {
+    headers: { accept: 'application/dns-json' },
+    cf     : { cacheTtl: 300, cacheEverything: true },
+  });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  const rec  = (data?.Answer || []).find(r => r.type === 5);
+  return rec ? String(rec.data) : null;
+}
+
+// ─────────────────────────────────────────────
+// Origin Fetch (Argo 경로 통합)
+// ─────────────────────────────────────────────
+/**
+ * bloggerFetch — [리디렉션 루프 근본 수정 v13]
+ * ─────────────────────────────────────────────────────────────────────
+ * ## v12까지의 문제 (Proxied/주황 구름 활성화 시 항상 무한 루프)
+ *
+ * v12까지는 `targetUrl = url.origin + ...` 로 "커스텀 도메인 자기 자신"을
+ * fetch 대상으로 사용하고, `cf.resolveOverride: 'ghs.google.com'` 으로
+ * DNS 조회만 Blogger로 바꾸려 시도했다. 그러나 Cloudflare의 실제 동작은:
+ *
+ *   resolveOverride는 "URL의 host"와 "override 대상 host"가 **둘 다
+ *   같은 Cloudflare 계정의 zone에 등록되어 있을 때만" 적용된다.
+ *   (공식 문서: resolveOverride will only take effect if both the URL
+ *   host and the host specified by resolveOverride are within your zone.)
+ *
+ * `ghs.google.com`은 사용자의 zone이 아니므로 이 조건을 절대 만족할 수
+ * 없다 → resolveOverride가 조용히 **무시**된다 → 실제 DNS 조회는 URL의
+ * host(커스텀 도메인) 그대로 진행된다.
+ *
+ *   • DNS가 Cloudflare로 Proxied(주황 구름)인 경우:
+ *     커스텀 도메인의 A/AAAA가 Cloudflare 엣지 IP를 가리키므로, 이
+ *     fetch()는 결국 "자기 자신의 Worker"를 다시 호출하게 된다. Worker는
+ *     다시 이 함수를 실행해 또 자기 자신을 호출 → 무한 루프
+ *     (ERR_TOO_MANY_REDIRECTS / subrequest depth 초과)로 이어진다.
+ *     이것이 "Proxied를 켜면 항상 리디렉션 무한 루프에 빠지는" 근본 원인.
+ *   • DNS가 DNS-only(회색 구름)인 경우:
+ *     우연히 A/CNAME이 실제 Blogger 인프라를 가리키고 있을 때만 동작해
+ *     "회색 구름에서는 되는데 주황 구름만 켜면 안 된다"는 증상으로
+ *     보고된다.
+ *
+ * ## v13 수정
+ *
+ * DNS 조회 자체를 힌트가 아니라 **fetch target host를 직접
+ * `ghs.google.com`으로 치환**하는 방식으로 바꾼다. 즉:
+ *   1. fetch를 보낼 URL의 hostname을 GHS_TARGET으로 직접 교체한다
+ *      (DNS 조회 무시 로직에 의존하지 않고, fetch가 애초에 Blogger
+ *      인프라로만 나가도록 강제 — Proxied 여부와 무관하게 항상 정확).
+ *   2. Blogger는 Host 헤더로 어떤 블로그인지 판별하므로, 원래 커스텀
+ *      도메인을 `Host` 헤더에 명시적으로 담아 그대로 전달한다.
+ *   3. resolveOverride는 zone 내부 도메인 간 라우팅에는 여전히 유효할 수
+ *      있으므로 하위 호환을 위해 보조 힌트로만 유지하고, 주 라우팅
+ *      메커니즘으로는 더 이상 의존하지 않는다.
+ *   4. 방어적으로 fetch 대상 hostname이 절대 "이 Worker가 서비스 중인
+ *      원래 요청 host"와 같아지지 않도록 어서션을 추가해, 향후 리팩터링
+ *      실수로 자기 자신을 호출하는 회귀가 생기면 조용히 루프에 빠지는
+ *      대신 즉시 명확한 에러로 실패하게 한다.
+ */
+async function bloggerFetch(url, reqHeaders, argoCtx, cfOverride = null) {
+  const params = new URLSearchParams(url.search);
+  params.delete('m');
+  const qs = params.toString() ? '?' + params.toString() : '';
+
+  // ── 방어적 자기호출 어서션 (에러 방지 장치) ─────────────────────────
+  // 원래 요청 hostname이 이미 GHS_TARGET 자신인 경우(있을 수 없는
+  // 상태지만) 그대로 진행하면 무한 루프로 이어질 수 있으므로 즉시
+  // 명확한 예외로 실패시켜 원인 파악을 쉽게 한다.
+  if (url.hostname === GHS_TARGET) {
+    throw new Error('bloggerFetch self-call guard: request host equals GHS_TARGET unexpectedly, refusing to fetch self.');
+  }
+
+  // ✅ [Error 525 근본 수정, v14] v13까지는 fetch target host 자체를
+  // ghs.google.com으로 고정하고 Host 헤더만 원래 커스텀 도메인으로
+  // 얹었다 — 즉 TLS SNI는 'ghs.google.com', HTTP Host 헤더는 커스텀
+  // 도메인으로 서로 달랐다. 무한 루프는 확실히 막았지만, 실서비스에서는
+  // Google 프론트엔드가 "SNI와 Host 헤더가 불일치하는 요청"을 TLS
+  // 핸드셰이크 단계에서 거부하는 사례가 있고, Cloudflare는 이를 525로
+  // 합성해 반환한다. 즉 v13 방식은 안전하지만 원본(Google) 쪽에서
+  // 차단될 수 있는 패턴이었다.
+  //
+  // v14는 SNI와 Host를 항상 일치시킨다: fetch target host를 원래 커스텀
+  // 도메인 그대로 두고, 그 도메인의 실제 DNS(CNAME 체인)가 정말로
+  // ghs.google.com을 가리키는지 warmCname()으로 먼저 확인한다.
+  //   • DNS가 실제로 ghs.google.com을 가리키는 경우(정상 Blogger 커스텀
+  //     도메인 설정): fetch host를 원래 도메인 그대로 사용해도 Worker
+  //     내부의 fetch()는 Cloudflare 존의 프록시 레코드가 아니라 실제
+  //     퍼블릭 DNS 조회 결과로 연결되므로, 결국 Blogger 인프라로 정확히
+  //     연결되면서 SNI=Host=실제 방문 도메인인 "완전히 정상적인" HTTPS
+  //     요청이 된다. (무한 루프가 재발하지 않는 이유: 이 zone/Route가
+  //     서비스하는 도메인이 ghs.google.com을 직접 CNAME으로 가리킬 수는
+  //     없으므로 — Blogger가 Google 소유이지 이 zone 소유가 아니다.)
+  //   • DNS가 아직 ghs.google.com을 가리키지 않는(오설정/전파 지연) 경우만
+  //     예외적으로 GHS_TARGET 직접 접속 폴백(v13 방식)을 사용한다.
+  const dnsConfirmedGhs = await warmCname(url.hostname).catch(() => false);
+  const targetHost = dnsConfirmedGhs ? url.hostname : GHS_TARGET;
+  const targetUrl  = `https://${targetHost}${url.pathname}${qs}`;
+
+  const headers = new Headers();
+  for (const [k, v] of reqHeaders.entries()) {
+    const kl = k.toLowerCase();
+    if (kl === 'host' || kl.startsWith('cf-') || kl === 'x-forwarded-for' || kl === 'x-real-ip') continue;
+    headers.set(k, v);
+  }
+  headers.set('user-agent', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
+  // Argo 라우팅 힌트 헤더
+  if (argoCtx?.region) headers.set('x-argo-region', argoCtx.region);
+
+  // ✅ [SSL handshake failed 수정, v13] http3 힌트 제거 — argoBuildFetchOptions와
+  // 동일한 이유(QUIC 협상 불안정성으로 인한 handshake 실패 가능성 배제).
+  const cfOpts = argoCtx ? argoBuildFetchOptions(argoCtx).cf : {};
+
+  // ✅ [Error 525 근본 수정, v14] SNI(targetUrl의 host)와 HTTP Host 헤더를
+  // 최대한 일치시킨다. dnsConfirmedGhs === true인 경우 targetHost가 이미
+  // url.hostname과 같으므로 아래 host 헤더 설정은 사실상 no-op이 되고
+  // (SNI=Host=원래 도메인), dnsConfirmedGhs === false인 폴백 경로에서만
+  // 이전 v13 방식(SNI=ghs.google.com, Host=커스텀도메인)이 적용된다.
+  const cfInit = cfOverride || { ...cfOpts, cacheTtl: 0, cacheEverything: false };
+  const outboundRequest = new Request(targetUrl, {
+    method  : 'GET',
+    headers,
+    redirect: 'manual',
+    cf      : cfInit,
+  });
+  // Blogger가 어떤 블로그(커스텀 도메인)인지 판별할 수 있도록 원래 host를
+  // Host 헤더로 명시 전달. dnsConfirmedGhs===true 경로에서는 targetUrl의
+  // host와 동일한 값을 다시 설정하는 것뿐이라 안전하며, false(GHS_TARGET
+  // 직접 접속) 폴백 경로에서는 여전히 필수적이다(없으면 Blogger가
+  // ghs.google.com 자신으로 오인해 404/오류를 반환한다).
+  outboundRequest.headers.set('host', url.hostname);
+
+  return fetch(outboundRequest);
+}
+
+async function proxyPass(url, request, cfOverride = null) {
+  try {
+    const resp = await retryAsync(() => bloggerFetch(url, request.headers, null, cfOverride), 1);
+    // ✅ [Error 525 수정] 정적 자산 패스스루 경로도 재시도 후 여전히 실패한
+    // 경우 Cloudflare 합성 코드(520~527)를 그대로 방문자에게 노출하지 않고
+    // 표준 502로 정규화한다 (HTML 렌더링 경로와 동일한 정책).
+    if (resp.status >= 520 && resp.status <= 527) {
+      return errResp(502, 'Origin temporarily unavailable (upstream ' + resp.status + ')');
+    }
+    return stripInternalHeaders(resp, url, isPassthrough(url.pathname, url));
+  } catch (e) {
+    return errResp(502, 'Proxy failed: ' + String(e?.message ?? e));
+  }
+}
+
+// ─────────────────────────────────────────────
+// 관리 패널
+// ─────────────────────────────────────────────
+async function handlePanel(request, url, env, ctx) {
+  // ✅ [에러 방지 장치 — 심각한 보안 결함 수정] 이전에는 env.PANEL_SECRET이
+  // 설정되지 않은 경우 하드코딩된 기본값 'change-me-in-dashboard'로
+  // 조용히 폴백했다. 이 값은 공개 소스코드에 그대로 노출되어 있으므로,
+  // 배포자가 실수로 PANEL_SECRET 환경변수/시크릿 설정을 빠뜨리면 관리
+  // 패널(KV/DO 데이터 조회·삭제, IP 차단 해제, 캐시 플러시 등 민감한
+  // 작업 포함)이 사실상 인증 없이 전체 인터넷에 노출되는 심각한 보안
+  // 결함이었다. 이제는 PANEL_SECRET이 설정되지 않았거나 너무 짧으면
+  // (추측이 쉬운 값 방지) 어떤 입력으로도 절대 통과할 수 없는 503으로
+  // 명확히 차단하고, 콘솔에 이유를 남긴다.
+  if (!env.PANEL_SECRET || env.PANEL_SECRET.length < 16) {
+    return new Response(
+      'Admin panel disabled: PANEL_SECRET is not configured (or is too short). ' +
+      'Set a strong PANEL_SECRET (16+ chars) in your Worker secrets/environment ' +
+      'variables (wrangler secret put PANEL_SECRET) before using /panel.',
+      { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } }
+    );
+  }
+  // 인증 체크 — 상수시간 비교(WASM 가속, wasmCore.constantTimeEqual)로
+  // 타이밍 공격을 방지한다. 이전의 `auth !== secret`은 문자열 비교 시
+  // 첫 불일치 문자에서 조기 종료되는 JS 엔진 특성상 이론적으로 타이밍
+  // 차이를 이용한 무차별 대입에 노출될 수 있었다.
+  const auth   = request.headers.get('x-panel-secret') || url.searchParams.get('secret') || '';
+  const secret = env.PANEL_SECRET;
+  const authOk = await wasmCore.constantTimeEqual(auth, secret);
+  if (!authOk || !hasCloudflareBotMfa(request, env)) {
+    return new Response(panelLoginHtml(), {
+      status : 401,
+      headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+    });
+  }
+
+  const subPath = url.pathname.replace(/^\/panel\/?/, '') || 'dashboard';
+
+  // API 엔드포인트
+  if (subPath === 'api/metrics')         return new Response(JSON.stringify(getMetrics()), jsonHeaders());
+  if (subPath === 'api/cache_stats')     return new Response(JSON.stringify(await cacheReserveStats(env)), jsonHeaders());
+  if (subPath === 'api/lb_status')       return new Response(JSON.stringify(await lbClusterLoad(env)), jsonHeaders());
+  if (subPath === 'api/regional_cache')  return new Response(JSON.stringify(await regionalCacheStats(env)), jsonHeaders());
+  if (subPath === 'api/analytics')       return new Response(JSON.stringify(await getAnalytics(env, 200)), jsonHeaders());
+  if (subPath === 'api/blocked_ips')     return new Response(JSON.stringify(await listBlockedIps(env)), jsonHeaders());
+  if (subPath === 'api/redis_stats')     return new Response(JSON.stringify(await doRedisClusterStats(env)), jsonHeaders());
+  if (subPath === 'api/google_status')   return new Response(JSON.stringify(googleIntegrationStatus(env)), jsonHeaders());
+  if (subPath === 'api/google_sync' && request.method === 'POST') return new Response(JSON.stringify(await runGoogleSync(env)), jsonHeaders());
+  if (subPath === 'api/security_settings') return new Response(JSON.stringify(await securitySettings(env)), jsonHeaders());
+  if (subPath === 'api/redis_flush' && request.method === 'POST') {
+    const result = await doRedisFlushAll(env);
+    return new Response(JSON.stringify(result), jsonHeaders());
+  }
+  if (subPath === 'api/purge_cache')     {
+    const result = await cacheReservePurge(env);
+    return new Response(JSON.stringify(result), jsonHeaders());
+  }
+  if (subPath.startsWith('api/block_ip/')) {
+    const ip = subPath.replace('api/block_ip/', '');
+    await blockIp(env, ip, 86400);
+    return new Response(JSON.stringify({ blocked: ip }), jsonHeaders());
+  }
+  if (subPath.startsWith('api/unblock_ip/')) {
+    const ip = subPath.replace('api/unblock_ip/', '');
+    await unblockIp(env, ip);
+    return new Response(JSON.stringify({ unblocked: ip }), jsonHeaders());
+  }
+  if (subPath === 'api/generate_sitemap') {
+    // [버그 수정] 등록된 모든 사이트 각각에 대해 독립적으로 재생성한다
+    // (이전에는 자동감지된 도메인 하나만 생성해 다른 사이트는 갱신되지 않았다).
+    const hosts   = await collectSiteHosts(env);
+    const results = [];
+    for (const h of hosts) {
+      const base = 'https://' + h;
+      const r = await generateSitemap(env, base);
+      results.push({ host: h, count: r.count, error: r.error || null });
+    }
+    return new Response(JSON.stringify({ sites: results }), jsonHeaders());
+  }
+  if (subPath === 'api/generate_rss') {
+    const hosts   = await collectSiteHosts(env);
+    const results = [];
+    for (const h of hosts) {
+      const base  = 'https://' + h;
+      const title = await resolveSiteTitleAsync(env, h);
+      const r = await generateRss(env, base, title);
+      results.push({ host: h, count: r.count, error: r.error || null });
+    }
+    return new Response(JSON.stringify({ sites: results }), jsonHeaders());
+  }
+
+  // SSL/TLS 관리 API
+  const sslApiResp = await handleSslPanelApi(subPath, request, env);
+  if (sslApiResp) return sslApiResp;
+
+  // [v9] K8s/컨테이너/Linux 유사 시뮬레이션 패널 API 전체 제거.
+  // (api/k8s_status, api/k8s_events, api/k8s_reconcile, api/k8s_apply,
+  //  api/containers, api/linux_status, api/linux_ps, api/linux_cgroups,
+  //  api/linux_journal, api/linux_systemd, api/linux_cron,
+  //  api/linux_workers, api/linux_netns, api/linux_vfs_proc)
+  // Cloudflare Workers에는 실제 프로세스·cgroup·네트워크 네임스페이스가
+  // 없어 이 API들은 실제 인프라 상태가 아니라 항상 초기화 직후의 가짜
+  // 시드 데이터만 보여주고 있었다. 혼란을 주는 거짓 정보이므로 명확한
+  // 410 응답으로 대체한다.
+  if (subPath.startsWith('api/k8s_') || subPath === 'api/containers' ||
+      subPath.startsWith('api/linux_')) {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: 'removed',
+      message: 'K8s/컨테이너/Linux 시뮬레이션 API는 v9에서 제거되었습니다. ' +
+               'Cloudflare Workers 환경에서는 실제 프로세스·컨테이너·커널을 관리할 수 없습니다.',
+    }, null, 2), { status: 410, ...jsonHeaders() });
+  }
+  // 캐시 초기화 로그
+  if (subPath === 'api/cache_reset_log') {
+    const { kvGetJson } = await import('./src/store.js').catch(() => ({ kvGetJson: async () => null }));
+    const log = await kvGetJson(env, 'state:cache_reset_log');
+    return new Response(JSON.stringify(log || { ts: null, nextResetAt: null, ttlPolicy: {} }), jsonHeaders());
+  }
+  // 현재 도메인 설정 (자동감지 포함)
+  if (subPath === 'api/domain_info') {
+    const autoBase = await resolveSiteBaseAsync(env);
+    const autoTitle = await resolveSiteTitleAsync(env);
+    const { kvGet } = await import('./src/store.js').catch(() => ({ kvGet: async () => null }));
+    const kvHost  = await kvGet(env, 'state:site_host').catch(() => null);
+    const kvTitle = await kvGet(env, 'state:site_title').catch(() => null);
+    // 라우트 목록에서 탐지된 실사용 도메인
+    const routeHost = await resolveHostFromRoutes(env).catch(() => null);
+    return new Response(JSON.stringify({
+      SITE_BASE_URL    : env.SITE_BASE_URL  || '(미설정 — 자동감지 사용 중)',
+      SITE_HOST        : env.SITE_HOST      || '(미설정 — 자동감지 사용 중)',
+      SITE_TITLE       : env.SITE_TITLE     || '(미설정 — 자동감지 사용 중)',
+      autoDetectedHost : kvHost   || '(미감지 — 첫 요청 후 자동저장)',
+      autoDetectedTitle: kvTitle  || '(미감지)',
+      routeDetectedHost: routeHost || '(미감지 — 첫 요청 후 라우트 자동저장)',
+      resolved         : autoBase  || url.origin,
+      resolvedTitle    : autoTitle,
+      workerOrigin     : url.origin,
+      isExampleCom     : !autoBase || autoBase === 'https://example.com',
+      memCacheHost     : _detectedHost || null,
+      detectionMethod  : routeHost ? 'route(ssl:routes KV)' : (kvHost ? 'state:site_host KV' : 'fallback'),
+    }), jsonHeaders());
+  }
+
+  // 관리 패널 HTML
+  return new Response(panelHtml(secret), {
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+  });
+}
+
+// ─────────────────────────────────────────────
+// 유틸 핸들러
+// ─────────────────────────────────────────────
+async function debugInfo(url, env) {
+  const host = url.hostname;
+  const cnameOk = cnameGet(host);
+  const info = {
+    host, version: 'v9',
+    workerId   : lbWorkerId(),
+    load       : lbLoad(),
+    cnameOk,
+    features   : [
+      'argo-routing','tiered-cache','priority-routing','cache-reserve-4h',
+      'schema-markup','faq-ai','sitemap-cron','rss-cron','load-balancer-kv',
+      'panel','redis-do' + (doRedisAvailable(env) ? ':active' : ':unavailable'),
+      'seo-slug-v9',
+    ],
+    originCircuit: circuitStatus(),
+  };
+  return new Response(JSON.stringify(info, null, 2), { status: 200, ...jsonHeaders() });
+}
+
+async function lbStatus(env) {
+  const status = await lbClusterLoad(env);
+  return new Response(JSON.stringify({ ...status, currentWorker: { id: lbWorkerId(), load: lbLoad() } }, null, 2), jsonHeaders());
+}
+
+async function cacheStats(env) {
+  const stats = await cacheReserveStats(env);
+  return new Response(JSON.stringify(stats, null, 2), jsonHeaders());
+}
+
+async function purgeAll(env) {
+  const [slugs, cache] = await Promise.all([
+    purgeAllSlugs(env),
+    cacheReservePurge(env),
+  ]);
+  return new Response(JSON.stringify({ slugs, cache }), jsonHeaders());
+}
+
+// ─────────────────────────────────────────────
+// HTML 변환 함수들
+// ─────────────────────────────────────────────
+// [버그 수정] 정규식에 \\? , \\d 처럼 백슬래시가 두 개씩 들어가 있었다.
+// 정규식 리터럴(/.../ )안에서 "\\"는 "리터럴 백슬래시 문자 1개"를 뜻하므로
+// 실제로는 "?"(물음표)나 "\d"(숫자)를 매칭하는 게 아니라 "문자열에 포함된
+// 백슬래시(\)"를 찾고 있었다 — 즉 정상적인 HTML에는 거의 나타나지 않는
+// 패턴이라 이 함수가 사실상 항상 아무 것도 치환하지 못하는 죽은 코드였다.
+// 결과적으로 Blogger의 모바일 파라미터(?m=1 등)가 렌더링된 링크에 그대로
+// 남아있었다. 백슬래시를 하나씩만 써서 "?"와 "\d"를 올바르게 매칭한다.
+function stripMobileParam(html) {
+  return html
+    .replace(/((?:href|src|action)=["'][^"']*)\?m=\d+&/gi, '$1?')
+    .replace(/((?:href|src|action)=["'][^"']*)&m=\d+/gi, '$1')
+    .replace(/((?:href|src|action)=["'][^"']*)\?m=\d+/gi, '$1');
+}
+
+function enforceHttps(html) {
+  return html.replace(/((?:src|href)=["'])http:\/\//gi, '$1https://');
+}
+
+function injectPerformanceOptimizations(html) {
+  if (html.includes('rel="dns-prefetch"')) return html;
+  // [버그 수정] PageSpeed Insights가 "5개가 넘는 preconnect 연결이
+  // 발견되었습니다. 사전 연결은 가장 중요한 출처에 한해 최소한으로만
+  // 사용해야 합니다"라고 경고하는 원인이 바로 이 함수였다. preconnect는
+  // 브라우저가 즉시 TCP+TLS 핸드셰이크를 미리 열어두는 무거운 작업이라
+  // 남발하면 오히려 실제로 중요한 리소스(LCP 등)의 연결 수립을 늦춰
+  // 성능이 떨어진다. dns-prefetch(가벼움)는 유지하되, preconnect는 실제
+  // 렌더링 초기에 반드시 쓰이는 gstatic 폰트 출처 하나로 최소화한다.
+  const tags = [
+    '<link rel="dns-prefetch" href="//www.blogger.com">',
+    '<link rel="dns-prefetch" href="//www.gstatic.com">',
+    '<link rel="dns-prefetch" href="//fonts.googleapis.com">',
+    '<link rel="dns-prefetch" href="//fonts.gstatic.com">',
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+  ].join('\n');
+  return html.replace(/(<head[^>]*>)/i, `$1\n${tags}`);
+}
+
+function injectDeviceOptimizations(html, pRoute) {
+  const hints = buildDeviceHints(pRoute);
+  if (!hints) return html;
+  if (html.includes('mobile-web-app-capable')) return html;
+  return html.replace(/(<head[^>]*>)/i, `$1\n${hints}`);
+}
+
+function injectMetaDescription(html, ctx) {
+  if (!ctx.description) return html;
+  const esc = escapeAttr(ctx.description);
+  if (/<meta[^>]+name=["']description["']/i.test(html)) {
+    return html.replace(/(<meta[^>]+name=["']description["'][^>]+content=["'])[^"']*["']/i, `$1${esc}"`);
+  }
+  return html.replace(/(<\/head>)/i, `<meta name="description" content="${esc}">\n$1`);
+}
+
+function injectCanonical(html, ctx, url) {
+  if (/<link[^>]+rel=["']canonical["']/i.test(html)) return html;
+  return html.replace(/(<\/head>)/i, `<link rel="canonical" href="${escapeAttr(ctx.postUrl || url.toString())}">\n$1`);
+}
+
+function injectSeoTags(html, ctx) {
+  if (!ctx.title) return html;
+  const tags = [];
+  const og = (p, c) => { if (c && !new RegExp(`property=["']${escapeRe(p)}["']`).test(html)) tags.push(`<meta property="${p}" content="${escapeAttr(c)}">`); };
+  const tw = (n, c) => { if (c && !new RegExp(`name=["']${escapeRe(n)}["']`).test(html)) tags.push(`<meta name="${n}" content="${escapeAttr(c)}">`); };
+  og('og:title',       ctx.title);
+  og('og:description', ctx.description);
+  og('og:url',         ctx.postUrl);
+  og('og:type',        ctx.type === 'post' ? 'article' : 'website');
+  og('og:site_name',   ctx.siteName);
+  og('og:locale',      'ko_KR');
+  if (ctx.imageUrl)    og('og:image', ctx.imageUrl);
+  tw('twitter:card',        ctx.imageUrl ? 'summary_large_image' : 'summary');
+  tw('twitter:title',       ctx.title);
+  tw('twitter:description', ctx.description);
+  if (ctx.imageUrl) tw('twitter:image', ctx.imageUrl);
+  // 네이버 SEO 특화
+  if (ctx.author) tw('dable:item_id', ctx.postUrl);
+  return tags.length ? html.replace(/(<\/head>)/i, tags.join('\n') + '\n$1') : html;
+}
+
+// ─────────────────────────────────────────────
+// 페이지 컨텍스트 추출
+// ─────────────────────────────────────────────
+async function extractPageContext(html, url) {
+  const ctx = {
+    type       : detectPageType(url),
+    title      : '',
+    description: '',
+    imageUrl   : '',
+    author     : '',
+    publishDate: '',
+    updateDate : '',
+    tags       : [],
+    postUrl    : url.toString(),
+    siteName   : extractSiteName(html),
+    logoUrl    : extractLogoUrl(html),
+    titlePath  : null,  // ✅ v8: SEO 슬러그 경로 (KV에서 나중에 채워짐)
+  };
+  ctx.title       = extractMeta(html, 'og:title') || extractTagContent(html, /<title[^>]*>([^<]+)<\/title>/i) || '';
+  // ✅ [v13: WASM 가속] 본문 텍스트 추출 + CJK-aware meta description 생성은
+  // 매 요청(캐시 미스 시) 렌더링 경로의 실질 핫패스이므로 WASM으로 처리한다.
+  // wasmCore의 각 메서드는 WASM 인스턴스화 실패 시 내부적으로 안전하게
+  // JS 폴백으로 전환되므로 이 호출부는 백엔드와 무관하게 항상 안전하다.
+  const bodyText  = await wasmCore.extractBodyText(html);
+  ctx.description = extractMeta(html, 'description') || extractMeta(html, 'og:description') ||
+                     await wasmCore.buildMetaDescription(bodyText, ctx.title, 160);
+  ctx.imageUrl    = extractMeta(html, 'og:image')    || extractFirstImage(html)              || '';
+  ctx.publishDate = extractMeta(html, 'article:published_time') || extractJsonLdDate(html, 'datePublished') || '';
+  ctx.updateDate  = extractMeta(html, 'article:modified_time')  || extractJsonLdDate(html, 'dateModified')  || ctx.publishDate;
+  ctx.author      = extractMeta(html, 'article:author') || extractTagContent(html, /class="fn"[^>]*>([^<]+)</i) || '';
+  ctx.tags        = extractLabels(html);
+  return ctx;
+}
+
+function detectPageType(url) {
+  const p = url.pathname;
+  if (p === '/' || p === '') return 'home';
+  if (/\/\d{4}\/\d{2}\/[^/]+\.html$/.test(p)) return 'post';
+  if (/^\/p\//.test(p)) return 'page';
+  if (p.startsWith('/search/label/')) return 'label';
+  if (p.startsWith('/search')) return 'search';
+  if (/^\/[^/]+$/.test(p) && !isReservedFlatPath(p)) return 'post';
+  return 'other';
+}
+
+// ─────────────────────────────────────────────
+// 라우트 판별
+// ─────────────────────────────────────────────
+function isPassthrough(path, url) {
+  if (path.startsWith('/feeds/')) return true;
+  if (url.searchParams.has('alt')) return true;
+  if (/\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|eot|mp4|webm|xml|txt|json)$/i.test(path)) return true;
+  return false;
+}
+
+function isHtml(resp) { return (resp.headers.get('content-type') || '').includes('text/html'); }
+
+function shouldBypassCache(request, url, path) {
+  if (!['GET', 'HEAD'].includes(request.method)) return true;
+  if (request.headers.get('cache-control') === 'no-cache') return true;
+  if (path.startsWith('/b/') || path.startsWith('/admin') || path === '/ncr') return true;
+  if (url.searchParams.has('blogedit') || url.searchParams.has('postID') ||
+      url.searchParams.has('action') || url.searchParams.has('widgetType')) return true;
+  if (path.startsWith('/search') && url.searchParams.has('q')) return true;
+  return false;
+}
+
+// ─────────────────────────────────────────────
+// 응답 유틸
+// ─────────────────────────────────────────────
+function stripInternalHeaders(resp, requestUrl, isStaticAsset) {
+  try {
+    const h = new Headers(resp.headers);
+    ['cf-cache-status','cf-ray','nel','report-to','server'].forEach(k => h.delete(k));
+    h.set('x-powered-by', 'BloggerSEO-v8');
+
+    // ✅ [리디렉션 루프 수정 v10] Blogger(ghs.google.com) 원본이 3xx 응답의
+    // Location 헤더에 자기 자신 기준의 스킴/호스트(대개 http:// 이거나
+    // 내부적으로 인식한 blogspot 호스트)를 그대로 담아 보내는 경우가 있다.
+    // 이걸 손대지 않고 그대로 브라우저에 전달하면:
+    //   1) Location이 http://커스텀도메인/... 으로 내려감
+    //   2) 브라우저가 http://로 재요청 → enforceHttpsRedirect가 다시
+    //      https://로 301
+    //   3) Worker가 Blogger에서 다시 콘텐츠를 가져오면 Blogger가 또 같은
+    //      http:// Location을 반환
+    //   4) 2)↔3) 무한 반복 → 브라우저에 "리디렉션 횟수가 너무 많습니다"
+    // (ERR_TOO_MANY_REDIRECTS) 로 노출된다.
+    // 항상 "지금 요청받은 커스텀 도메인 + https"로 스킴/호스트를 강제
+    // 치환해서 이 루프를 원천 차단한다. 경로/쿼리/해시는 Blogger가 보낸
+    // 값을 그대로 유지한다 (Blogger 내부 정규화 로직은 신뢰).
+    const loc = h.get('location');
+    if (loc && requestUrl) {
+      try {
+        const locUrl = new URL(loc, requestUrl);
+        locUrl.protocol = 'https:';
+        locUrl.hostname = requestUrl.hostname;
+        locUrl.port     = '';
+        const fixedLocation = locUrl.toString();
+
+        // ✅ [ERR_TOO_MANY_REDIRECTS 수정 v11] v10 수정은 스킴/호스트만
+        // 보정했을 뿐, "보정한 뒤에도 목적지가 지금 요청받은 URL과 완전히
+        // 동일한" 경우는 걸러내지 못했다. 커스텀 도메인이 Blogger 쪽에
+        // 아직 완전히 인식되지 않았을 때(CNAME 전파 지연·도메인 미확인 등)
+        // Blogger가 같은 경로로 3xx를 계속 돌려주는 경우가 실제로 있고,
+        // v10 보정 로직은 스킴/호스트를 항상 지금 요청받은 도메인으로
+        // 강제하므로 결과적으로 "자기 자신"과 완전히 같은 URL이 만들어져
+        // 버린다. 그대로 브라우저에 전달하면 브라우저 ↔ Worker가 같은
+        // URL을 영원히 주고받아 정확히 ERR_TOO_MANY_REDIRECTS가 뜬다.
+        // 목적지가 요청 URL과 같으면 리디렉션을 절대 전달하지 않고, 루프
+        // 대신 원인을 알 수 있는 508(Loop Detected)로 즉시 실패한다.
+        if (fixedLocation === requestUrl.toString()) {
+          return errResp(508,
+            'Redirect loop detected: origin redirected back to the exact same URL. ' +
+            'This usually means Blogger has not fully recognized this custom domain yet ' +
+            '(check Blogger → Settings → Publishing → custom domain, and the CNAME record). ' +
+            'Original location header from origin: ' + loc
+          );
+        }
+        h.set('location', fixedLocation);
+      } catch (_) {}
+    }
+
+    if (isStaticAsset && resp.ok) {
+      const cc = h.get('cache-control') || '';
+      if (!cc || /no-store|no-cache|max-age=0/i.test(cc)) {
+        h.set('cache-control', 'public, max-age=86400, stale-while-revalidate=3600');
+      }
+      const vary = h.get('vary') || '';
+      if (!/accept-encoding/i.test(vary)) h.set('vary', vary ? vary + ', Accept-Encoding' : 'Accept-Encoding');
+    }
+    return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
+  } catch (_) { return resp; }
+}
+
+function errResp(status, message) {
+  return new Response(message, {
+    status,
+    headers: {
+      'content-type' : 'text/plain; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-error'      : String(message).slice(0, 500),
+    },
+  });
+}
+
+function jsonHeaders() {
+  return { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } };
+}
+
+function buildResponseHeaders(etag, cacheControl = 'no-store', extra = {}) {
+  const h = new Headers();
+  h.set('content-type',           'text/html; charset=utf-8');
+  h.set('cache-control',          cacheControl);
+  h.set('x-content-type-options', 'nosniff');
+  h.set('x-frame-options',        'SAMEORIGIN');
+  h.set('referrer-policy',        'strict-origin-when-cross-origin');
+  h.set('permissions-policy',     'camera=(), microphone=(), geolocation=()');
+  h.set('x-xss-protection',       '1; mode=block');
+  h.set('vary',                   'Accept-Encoding');
+  h.set('x-powered-by',           'BloggerSEO-v8');
+  if (extra.serverTiming) h.set('server-timing', extra.serverTiming);
+  return h;
+}
+
+// ─────────────────────────────────────────────
+// 관리 패널 HTML (단일 파일 SPA)
+// ─────────────────────────────────────────────
+function panelLoginHtml() {
+  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BloggerSEO Panel — 로그인</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:#0f172a;color:#e2e8f0;display:flex;align-items:center;
+  justify-content:center;min-height:100vh}
+.card{background:#1e293b;border:1px solid #334155;border-radius:16px;
+  padding:40px;width:360px;text-align:center}
+h1{font-size:22px;font-weight:700;margin-bottom:8px;color:#f8fafc}
+p{color:#94a3b8;font-size:14px;margin-bottom:24px}
+input{width:100%;padding:12px 16px;border:1px solid #475569;border-radius:8px;
+  background:#0f172a;color:#f8fafc;font-size:14px;margin-bottom:12px}
+button{width:100%;padding:12px;background:#3b82f6;color:#fff;border:none;
+  border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}
+button:hover{background:#2563eb}
+</style></head><body>
+<div class="card">
+  <h1>🛡️ BloggerSEO Panel</h1>
+  <p>관리 패널에 접근하려면 시크릿 키를 입력하세요</p>
+  <input type="password" id="sec" placeholder="Panel Secret Key" onkeydown="if(event.key==='Enter')login()">
+  <button onclick="login()">로그인</button>
+</div>
+<script>
+function login(){
+  const s=document.getElementById('sec').value;
+  if(s)window.location.href='/panel?secret='+encodeURIComponent(s);
+}
+</script></body></html>`;
+}
+
+function panelHtml(secret) {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BloggerSEO v9 — 관리 패널</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:#0f172a;color:#e2e8f0;min-height:100vh}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:#1e293b;
+  border-right:1px solid #334155;padding:20px 0;z-index:10}
+.logo{padding:0 20px 20px;font-size:18px;font-weight:800;color:#3b82f6;
+  border-bottom:1px solid #334155;margin-bottom:16px}
+.nav-item{padding:10px 20px;cursor:pointer;color:#94a3b8;font-size:14px;
+  transition:all .15s;display:flex;align-items:center;gap:10px}
+.nav-item:hover,.nav-item.active{background:#334155;color:#f8fafc}
+.main{margin-left:220px;padding:28px}
+h2{font-size:22px;font-weight:700;margin-bottom:20px;color:#f8fafc}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:28px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px}
+.card-title{font-size:12px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.05em;color:#64748b;margin-bottom:8px}
+.card-value{font-size:28px;font-weight:800;color:#f8fafc}
+.card-sub{font-size:12px;color:#64748b;margin-top:4px}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;
+  font-size:11px;font-weight:600}
+.badge-green{background:#064e3b;color:#34d399}
+.badge-yellow{background:#451a03;color:#fb923c}
+.badge-red{background:#450a0a;color:#f87171}
+.table-wrap{background:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{background:#334155;padding:10px 14px;text-align:left;font-size:12px;
+  font-weight:600;color:#94a3b8;text-transform:uppercase}
+td{padding:10px 14px;border-top:1px solid #1e293b;font-size:13px;color:#cbd5e1}
+tr:hover td{background:#334155}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:13px;
+  font-weight:600;cursor:pointer;transition:all .15s}
+.btn-primary{background:#3b82f6;color:#fff}
+.btn-primary:hover{background:#2563eb}
+.btn-danger{background:#ef4444;color:#fff}
+.btn-danger:hover{background:#dc2626}
+.btn-sm{padding:5px 10px;font-size:12px}
+.section{margin-bottom:32px}
+.flex{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.tag{background:#1e3a5f;color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:12px}
+#toast{position:fixed;bottom:24px;right:24px;background:#22c55e;color:#fff;
+  padding:12px 20px;border-radius:10px;font-weight:600;font-size:14px;
+  opacity:0;transition:opacity .3s;z-index:999}
+.chart-bar{background:#334155;border-radius:4px;height:8px;overflow:hidden;margin-top:6px}
+.chart-fill{background:#3b82f6;height:100%;transition:width .5s}
+.ip-input{background:#0f172a;border:1px solid #475569;border-radius:8px;
+  color:#f8fafc;padding:8px 12px;font-size:13px;width:200px}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="logo">🚀 BloggerSEO v9</div>
+  <div class="nav-item active" onclick="showSection('dashboard',this)">📊 대시보드</div>
+  <div class="nav-item" onclick="showSection('cache',this)">💾 캐시 관리</div>
+  <div class="nav-item" onclick="showSection('redis',this)">🧬 Redis 관리</div>
+  <div class="nav-item" onclick="showSection('routing',this)">🌐 라우팅 상태</div>
+  <div class="nav-item" onclick="showSection('lb',this)">⚖️ 로드밸런서</div>
+  <div class="nav-item" onclick="showSection('analytics',this)">📈 캐시 애널리틱스</div>
+  <div class="nav-item" onclick="showSection('security',this)">🛡️ 보안/IP 관리</div>
+  <div class="nav-item" onclick="showSection('sitemap',this)">🗺️ 사이트맵/RSS</div>
+  <div class="nav-item" onclick="showSection('domain',this)">🌍 도메인 설정</div>
+  <div class="nav-item" onclick="showSection('ssl',this)">🔒 SSL/TLS 인증서</div>
+  <div class="nav-item" onclick="showSection('cachepolicy',this)">⏱️ 캐시 TTL 정책</div>
+</div>
+<!-- [v9] "컨테이너/K8s", "Linux 인프라" 탭 제거됨.
+     Cloudflare Workers에는 실제 프로세스/컨테이너/커널이 없어 해당 탭이
+     보여주던 데이터는 전부 초기화 시 만들어진 가짜 시드 값이었고,
+     연결된 패널 API도 제거되어 더 이상 존재하지 않는다. -->
+<div class="main">
+  <!-- 대시보드 -->
+  <div id="s-dashboard">
+    <h2>📊 대시보드</h2>
+    <div class="grid" id="metric-cards">
+      <div class="card"><div class="card-title">총 요청</div><div class="card-value" id="m-count">-</div></div>
+      <div class="card"><div class="card-title">에러율</div><div class="card-value" id="m-errrate">-</div></div>
+      <div class="card"><div class="card-title">평균 레이턴시</div><div class="card-value" id="m-latency">-</div></div>
+      <div class="card"><div class="card-title">워커 부하</div><div class="card-value" id="m-load">-</div></div>
+    </div>
+    <div class="section">
+      <div class="card">
+        <div class="card-title">상태 코드 분포</div>
+        <div id="status-dist" style="margin-top:12px"></div>
+      </div>
+    </div>
+    <div class="flex">
+      <button class="btn btn-primary" onclick="loadDashboard()">🔄 새로고침</button>
+    </div>
+  </div>
+
+  <!-- 캐시 관리 -->
+  <div id="s-cache" style="display:none">
+    <h2>💾 Cache Reserve 관리</h2>
+    <div class="grid">
+      <div class="card"><div class="card-title">전체 캐시 항목</div><div class="card-value" id="c-total">-</div></div>
+      <div class="card"><div class="card-title">활성 캐시</div><div class="card-value" id="c-alive">-</div><div class="card-sub">TTL: 4시간</div></div>
+      <div class="card"><div class="card-title">만료된 캐시</div><div class="card-value" id="c-stale">-</div></div>
+    </div>
+    <div class="flex">
+      <button class="btn btn-primary" onclick="loadCacheStats()">🔄 새로고침</button>
+      <button class="btn btn-danger" onclick="purgeCache()">🗑️ 캐시 전체 삭제</button>
+    </div>
+  </div>
+
+  <!-- Redis 관리 (100% 자체 제작, Durable Objects 기반) -->
+  <div id="s-redis" style="display:none">
+    <h2>🧬 자체 제작 서버리스 Redis 관리</h2>
+    <div class="grid">
+      <div class="card"><div class="card-title">상태</div><div class="card-value" id="r-available">-</div></div>
+      <div class="card"><div class="card-title">샤드 수</div><div class="card-value" id="r-shardcount">-</div></div>
+      <div class="card"><div class="card-title">총 키 개수</div><div class="card-value" id="r-totalkeys">-</div></div>
+      <div class="card"><div class="card-title">총 용량(추정)</div><div class="card-value" id="r-totalbytes">-</div></div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">참고</div>
+      <div style="margin-top:8px;color:#94a3b8;font-size:13px;line-height:1.7">
+        Durable Objects(SQLite storage backend)로 100% 자체 구현한 Redis 호환 엔진입니다.
+        샤드(독립 DO 인스턴스)를 늘릴수록 총 용량이 선형으로 늘어나는 구조이며,
+        KV/Upstash는 이 엔진이 죽었을 때만 사용되는 백업 계층입니다.
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr><th>샤드</th><th>키 개수</th><th>용량(bytes, 추정)</th></tr></thead>
+      <tbody id="redis-shard-table"></tbody></table>
+    </div>
+    <div class="flex" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="loadRedis()">🔄 새로고침</button>
+      <button class="btn btn-danger" onclick="flushRedis()">🗑️ Redis 전체 비우기 (FLUSHALL)</button>
+    </div>
+  </div>
+
+  <!-- 라우팅 상태 -->
+  <div id="s-routing" style="display:none">
+    <h2>🌐 지역별 캐시 현황 (Regional Tiered Cache)</h2>
+    <div id="regional-stats" class="grid"></div>
+    <div class="flex"><button class="btn btn-primary" onclick="loadRegional()">🔄 새로고침</button></div>
+  </div>
+
+  <!-- 로드밸런서 -->
+  <div id="s-lb" style="display:none">
+    <h2>⚖️ 로드밸런서 상태</h2>
+    <div class="grid">
+      <div class="card"><div class="card-title">활성 인스턴스</div><div class="card-value" id="lb-instances">-</div></div>
+      <div class="card"><div class="card-title">평균 부하</div><div class="card-value" id="lb-avgload">-</div></div>
+    </div>
+    <div class="table-wrap" style="margin-top:16px">
+      <table><thead><tr><th>워커 ID</th><th>InFlight</th><th>최대</th><th>부하</th><th>최종 업데이트</th></tr></thead>
+      <tbody id="lb-table"></tbody></table>
+    </div>
+    <div class="flex" style="margin-top:16px"><button class="btn btn-primary" onclick="loadLb()">🔄 새로고침</button></div>
+  </div>
+
+  <!-- 애널리틱스 -->
+  <div id="s-analytics" style="display:none">
+    <h2>📈 캐시 애널리틱스</h2>
+    <div class="grid">
+      <div class="card"><div class="card-title">캐시 HIT</div><div class="card-value" id="a-hits">-</div></div>
+      <div class="card"><div class="card-title">페이지뷰</div><div class="card-value" id="a-views">-</div></div>
+      <div class="card"><div class="card-title">가장 많은 지역</div><div class="card-value" id="a-region">-</div></div>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr><th>시각</th><th>유형</th><th>경로</th><th>지역</th><th>디바이스</th><th>레이턴시</th></tr></thead>
+      <tbody id="a-table"></tbody></table>
+    </div>
+    <div class="flex" style="margin-top:16px"><button class="btn btn-primary" onclick="loadAnalytics()">🔄 새로고침</button></div>
+  </div>
+
+  <!-- 보안 -->
+  <div id="s-security" style="display:none">
+    <h2>🛡️ IP 차단 관리</h2>
+    <div class="flex" style="margin-bottom:20px">
+      <input class="ip-input" id="block-ip-input" placeholder="차단할 IP 주소">
+      <button class="btn btn-danger" onclick="blockIp()">차단</button>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr><th>차단 IP</th><th>작업</th></tr></thead>
+      <tbody id="ip-table"></tbody></table>
+    </div>
+    <div class="flex" style="margin-top:16px"><button class="btn btn-primary" onclick="loadIps()">🔄 새로고침</button></div>
+  </div>
+
+  <!-- 사이트맵/RSS -->
+  <div id="s-sitemap" style="display:none">
+    <h2>🗺️ 사이트맵 / RSS 관리</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">사이트맵 XML</div>
+        <div class="card-sub" style="margin-top:8px">/sitemap.xml</div>
+        <div class="flex" style="margin-top:12px">
+          <button class="btn btn-primary btn-sm" onclick="genSitemap()">즉시 생성</button>
+          <a href="/sitemap.xml" target="_blank" class="btn btn-sm" style="background:#334155;color:#f8fafc;text-decoration:none">보기</a>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">RSS 피드</div>
+        <div class="card-sub" style="margin-top:8px">/rss.xml</div>
+        <div class="flex" style="margin-top:12px">
+          <button class="btn btn-primary btn-sm" onclick="genRss()">즉시 생성</button>
+          <a href="/rss.xml" target="_blank" class="btn btn-sm" style="background:#334155;color:#f8fafc;text-decoration:none">보기</a>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">Cron 스케줄</div>
+      <div style="margin-top:10px;color:#94a3b8;font-size:13px;line-height:1.8">
+        🕐 사이트맵: <span class="tag">매 1시간</span><br>
+        📡 RSS: <span class="tag">매 30분</span><br>
+        🔍 슬러그 감사: <span class="tag">매 1시간</span><br>
+        🗑️ 만료 캐시 정리: <span class="tag">매 1시간</span>
+      </div>
+    </div>
+  </div>
+  <!-- 도메인 설정 진단 -->
+  <div id="s-domain" style="display:none">
+    <h2>🌍 도메인 자동 감지</h2>
+    <div class="grid" id="domain-cards">
+      <div class="card"><div class="card-title">실제 사용 도메인</div><div class="card-value" id="d-resolved" style="font-size:14px">-</div><div class="card-sub">자동감지 결과</div></div>
+      <div class="card"><div class="card-title">🛣️ 라우트 감지</div><div class="card-value" id="d-route" style="font-size:14px">-</div><div class="card-sub">ssl:routes KV 자동탐지</div></div>
+      <div class="card"><div class="card-title">감지 방법</div><div class="card-value" id="d-method" style="font-size:13px">-</div></div>
+      <div class="card"><div class="card-title">example.com 여부</div><div class="card-value" id="d-example">-</div></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-title" style="margin-bottom:10px">🤖 자동 감지 현황</div>
+      <div id="d-auto-info" style="color:#94a3b8;font-size:13px;line-height:2">로딩 중...</div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="card-title" style="margin-bottom:10px">ℹ️ 완전 자동화 안내</div>
+      <div style="color:#94a3b8;font-size:13px;line-height:2">
+        ✅ <strong>설정 불필요</strong> — 개인도메인으로 첫 HTTP 요청이 들어오는 순간 자동으로 도메인이 감지·저장됩니다.<br>
+        ✅ 라우트(ssl:routes) → state:site_host KV 순으로 탐지 (API 없이, 설정 제로).<br>
+        ✅ 이후 사이트맵, RSS, 스키마 마크업 등 모든 URL이 실제 개인도메인으로 자동 생성됩니다.<br>
+        ✅ 블로그 제목도 홈페이지 &lt;title&gt;에서 자동으로 추출됩니다.<br>
+        ✅ 모든 포스트 URL은 제목 기반 SEO 슬러그로 자동 전환됩니다.
+      </div>
+    </div>
+    <div class="flex" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="loadDomainInfo()">🔄 새로고침</button>
+    </div>
+  </div>
+
+  <!-- SSL/TLS 인증서 관리 -->
+  <div id="s-ssl" style="display:none">
+    <h2>🔒 SSL/TLS 인증서 관리</h2>
+
+    <!-- 요약 카드 -->
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">등록된 도메인</div>
+        <div class="card-value" id="ssl-total">-</div>
+        <div class="card-sub">자동 감지 + 수동 추가</div>
+      </div>
+      <div class="card">
+        <div class="card-title">SSL 활성</div>
+        <div class="card-value" id="ssl-active">-</div>
+        <div class="card-sub">HTTPS 정상 도메인</div>
+      </div>
+      <div class="card">
+        <div class="card-title">HTTPS 강제</div>
+        <div class="card-value"><span class="badge badge-green">✅ 항상 켜짐</span></div>
+        <div class="card-sub">Worker 레벨 301 리디렉션</div>
+      </div>
+      <div class="card">
+        <div class="card-title">자동 갱신</div>
+        <div class="card-value"><span class="badge badge-green">✅ 자동</span></div>
+        <div class="card-sub">Cloudflare Universal SSL</div>
+      </div>
+    </div>
+
+    <!-- ✅ [Error 525 방지 + 블로그스팟 인증서 불필요] 안내 배너 -->
+    <div class="card" style="margin-bottom:20px;border-left:3px solid #22c55e">
+      <div class="card-title" style="margin-bottom:10px">✅ 블로그스팟 SSL 인증서 발급 불필요</div>
+      <div style="color:#94a3b8;font-size:12px;line-height:1.8">
+        이 Worker는 원본(ghs.google.com)에 직접 HTTPS로 접속하고 <code>Host</code> 헤더로 블로그를
+        구분하므로, 블로그스팟(개인도메인)에서 별도로 SSL 인증서를 발급받을 필요가 없습니다 — Worker가
+        방문자용 HTTPS와 원본 연결을 모두 대신 처리합니다.<br><br>
+        <strong>⚠️ Error 525가 보인다면:</strong> Cloudflare 대시보드 →
+        <strong>SSL/TLS → Overview</strong>에서 암호화 모드를 반드시
+        <strong>"Flexible"</strong>로 설정하세요. Full/Full(strict)로 설정되어 있으면 Cloudflare
+        엣지가 (이 Worker와 무관하게) 커스텀 도메인 자체의 인증서를 요구하다가 실패해 Error 525/526을
+        반환할 수 있습니다.
+      </div>
+    </div>
+
+    <!-- 도메인 추가 -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title" style="margin-bottom:10px">➕ 도메인 수동 추가</div>
+      <div style="color:#94a3b8;font-size:12px;margin-bottom:12px;line-height:1.7">
+        커스텀 도메인으로 요청이 들어오면 <strong>자동으로 등록</strong>됩니다.<br>
+        아직 트래픽이 없는 도메인은 여기서 직접 추가하세요.
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <input class="ip-input" id="ssl-add-host" placeholder="example.com" style="width:260px">
+        <button class="btn btn-primary" onclick="sslAddRoute()">➕ 추가</button>
+      </div>
+    </div>
+
+    <!-- 도메인 + 인증서 현황 테이블 -->
+    <div class="section">
+      <h2 style="font-size:16px;margin-bottom:12px">📋 도메인 · 인증서 현황</h2>
+      <div id="ssl-empty" style="display:none;color:#64748b;font-size:13px;margin-bottom:16px;padding:20px;text-align:center">
+        등록된 도메인이 없습니다.<br>
+        커스텀 도메인으로 첫 요청이 들어오면 자동으로 나타납니다.
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>도메인</th>
+              <th>SSL 상태</th>
+              <th>TLS 버전</th>
+              <th>인증 기관</th>
+              <th>HSTS</th>
+              <th>갱신</th>
+              <th>등록 방식</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody id="ssl-route-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 동작 원리 안내 -->
+    <div class="card" style="margin-top:8px">
+      <div class="card-title" style="margin-bottom:10px">ℹ️ 설정 없이 자동 동작하는 이유</div>
+      <div style="color:#94a3b8;font-size:13px;line-height:2">
+        ✅ <strong>API 토큰 불필요</strong> — Cloudflare Zone에 DNS가 연결된 도메인은 Universal SSL이 자동 발급<br>
+        ✅ <strong>블로그스팟 별도 SSL 불필요</strong> — Worker가 앞단에서 HTTPS 처리<br>
+        ✅ <strong>HTTP 접속 → 즉시 301 HTTPS</strong> — Worker 레벨, 설정 없이 항상 켜짐<br>
+        ✅ <strong>인증서 자동 갱신</strong> — Cloudflare가 90일마다 자동 처리 (Let's Encrypt 또는 Google Trust)<br>
+        ✅ <strong>도메인 자동 감지</strong> — 커스텀 도메인으로 첫 요청 시 자동 등록<br>
+        ✅ <strong>Cron 상태 확인</strong> — 매 1시간마다 인증서 상태를 TLS 핸드셰이크로 직접 확인<br><br>
+        방문자 ──HTTPS(TLS1.3)──▶ <strong>Cloudflare Worker</strong> ──HTTP──▶ ghs.google.com(블로그스팟)
+      </div>
+    </div>
+
+    <div class="flex" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="loadSslStatus()">🔄 새로고침</button>
+      <button class="btn btn-primary" onclick="sslRefreshAll()" style="background:#0d9488">🔍 전체 인증서 재확인</button>
+    </div>
+  </div>
+
+  <!-- [v9] "K8s / 컨테이너 관리", "Linux 인프라" 섹션 제거됨.
+       실제 요청을 처리하지 않는 시뮬레이션 데이터를 보여주던 화면이었고,
+       연결된 패널 API(api/k8s_*, api/linux_*, api/containers)가 모두
+       제거되어 더 이상 표시할 데이터가 없다. -->
+
+  <!-- 캐시 TTL 정책 -->
+  <div id="s-cachepolicy" style="display:none">
+    <h2>⏱️ 캐시 TTL 정책 & 자동 초기화</h2>
+    <div class="grid">
+      <div class="card"><div class="card-title">홈 페이지 TTL</div><div class="card-value">30분</div><div class="card-sub">max-age=1800</div></div>
+      <div class="card"><div class="card-title">포스트 TTL</div><div class="card-value">1시간</div><div class="card-sub">max-age=3600</div></div>
+      <div class="card"><div class="card-title">정적 페이지 TTL</div><div class="card-value">4시간</div><div class="card-sub">max-age=14400</div></div>
+      <div class="card"><div class="card-title">라벨/카테고리 TTL</div><div class="card-value">1시간</div><div class="card-sub">max-age=3600</div></div>
+    </div>
+    <div class="grid" style="margin-top:12px">
+      <div class="card"><div class="card-title">RSS 피드 TTL</div><div class="card-value">1시간</div><div class="card-sub">저장: 3600s</div></div>
+      <div class="card"><div class="card-title">사이트맵 TTL</div><div class="card-value">2시간</div><div class="card-sub">저장: 7200s</div></div>
+      <div class="card"><div class="card-title">데이터 최대 보유</div><div class="card-value">1시간</div><div class="card-sub">DO/KV 캡</div></div>
+      <div class="card"><div class="card-title">자동 초기화 주기</div><div class="card-value">30분</div><div class="card-sub">Cron: */30</div></div>
+    </div>
+    <div class="card" style="margin-top:20px">
+      <div class="card-title">마지막 캐시 초기화</div>
+      <div id="cache-reset-info" style="margin-top:12px;color:#94a3b8;font-size:13px;line-height:1.8">로딩 중...</div>
+    </div>
+    <div class="flex" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="loadCachePolicyInfo()">🔄 새로고침</button>
+      <button class="btn btn-danger" onclick="purgeCache()">🗑️ 지금 즉시 초기화</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast">✅ 완료</div>
+<script id="panel-cfg" type="application/json">${ JSON.stringify({ s: secret }) }</script>
+
+<script>
+const SECRET = JSON.parse(document.getElementById('panel-cfg').textContent).s;
+const api = (path) => fetch('/panel/'+path+'?secret='+encodeURIComponent(SECRET)).then(r=>r.json());
+const apiPost = (path) => fetch('/panel/'+path+'?secret='+encodeURIComponent(SECRET), {method:'POST'}).then(r=>r.json());
+
+function toast(msg='완료'){
+  const t=document.getElementById('toast');
+  t.textContent='✅ '+msg; t.style.opacity='1';
+  setTimeout(()=>t.style.opacity='0',2500);
+}
+
+function showSection(name, navEl){
+  document.querySelectorAll('[id^="s-"]').forEach(el=>el.style.display='none');
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('s-'+name).style.display='';
+  if(navEl) navEl.classList.add('active');
+  if(name==='dashboard') loadDashboard();
+  else if(name==='cache') loadCacheStats();
+  else if(name==='redis') loadRedis();
+  else if(name==='routing') loadRegional();
+  else if(name==='lb') loadLb();
+  else if(name==='analytics') loadAnalytics();
+  else if(name==='security') loadIps();
+  else if(name==='sitemap') {}
+  else if(name==='domain') loadDomainInfo();
+  else if(name==='ssl') loadSslStatus();
+  else if(name==='cachepolicy') loadCachePolicyInfo();
+}
+
+async function loadDashboard(){
+  const [m,lb]=await Promise.all([api('api/metrics'),api('api/lb_status')]);
+  document.getElementById('m-count').textContent=(m.count||0).toLocaleString();
+  document.getElementById('m-errrate').textContent=((m.errorRate||0)*100).toFixed(2)+'%';
+  document.getElementById('m-latency').textContent=(m.avgLatencyMs||0)+'ms';
+  document.getElementById('m-load').textContent=Math.round((lb.avgLoad||0)*100)+'%';
+  const dist=document.getElementById('status-dist');
+  if(m.statusCounts){
+    dist.innerHTML=Object.entries(m.statusCounts).map(([k,v])=>
+      \`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="width:40px;font-size:13px;color:#94a3b8">\${k}</span>
+        <div class="chart-bar" style="flex:1"><div class="chart-fill" style="width:\${Math.min(100,v/m.count*100)}%"></div></div>
+        <span style="font-size:13px;color:#f8fafc;width:60px;text-align:right">\${v.toLocaleString()}</span>
+      </div>\`).join('');
+  }
+}
+
+async function loadCacheStats(){
+  const c=await api('api/cache_stats');
+  document.getElementById('c-total').textContent=(c.total||0).toLocaleString();
+  document.getElementById('c-alive').textContent=(c.alive||0).toLocaleString();
+  document.getElementById('c-stale').textContent=(c.stale||0).toLocaleString();
+}
+
+async function loadRedis(){
+  const r=await api('api/redis_stats');
+  document.getElementById('r-available').innerHTML = r.available
+    ? '<span class="badge badge-green">활성</span>'
+    : '<span class="badge badge-red">미연동</span>';
+  document.getElementById('r-shardcount').textContent=r.shardCount||0;
+  document.getElementById('r-totalkeys').textContent=(r.totalKeys||0).toLocaleString();
+  const kb=(r.totalBytesApprox||0)/1024;
+  document.getElementById('r-totalbytes').textContent = kb>1024 ? (kb/1024).toFixed(2)+' MB' : kb.toFixed(1)+' KB';
+  const tb=document.getElementById('redis-shard-table');
+  tb.innerHTML=(r.shards||[]).filter(s=>s.keys>0).map(s=>\`<tr>
+    <td>#\${s.shard}</td><td>\${(s.keys||0).toLocaleString()}</td><td>\${(s.bytesApprox||0).toLocaleString()}</td>
+  </tr>\`).join('')||\`<tr><td colspan="3" style="color:#64748b;text-align:center">저장된 키 없음</td></tr>\`;
+}
+
+async function flushRedis(){
+  if(!confirm('자체 제작 Redis(DO)의 모든 키를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
+  await apiPost('api/redis_flush');
+  toast('Redis 전체 비우기 완료');
+  loadRedis();
+}
+
+async function loadRegional(){
+  const r=await api('api/regional_cache');
+  const grid=document.getElementById('regional-stats');
+  grid.innerHTML=Object.entries(r).map(([reg,d])=>\`
+    <div class="card">
+      <div class="card-title">\${reg}</div>
+      <div class="card-value">\${((d.ratio||0)*100).toFixed(1)}%</div>
+      <div class="card-sub">HIT: \${d.hits||0} / MISS: \${d.misses||0}</div>
+      <div class="chart-bar"><div class="chart-fill" style="width:\${(d.ratio||0)*100}%"></div></div>
+    </div>\`).join('');
+}
+
+async function loadLb(){
+  const d=await api('api/lb_status');
+  document.getElementById('lb-instances').textContent=d.instances||0;
+  document.getElementById('lb-avgload').textContent=Math.round((d.avgLoad||0)*100)+'%';
+  const tb=document.getElementById('lb-table');
+  tb.innerHTML=(d.workers||[]).map(w=>\`<tr>
+    <td><code>\${w.workerId}</code></td>
+    <td>\${w.inFlight}</td><td>\${w.maxFlight}</td>
+    <td><span class="badge \${w.load>0.8?'badge-red':w.load>0.5?'badge-yellow':'badge-green'}">\${Math.round(w.load*100)}%</span></td>
+    <td style="font-size:11px">\${new Date(w.ts).toLocaleTimeString('ko-KR')}</td>
+  </tr>\`).join('');
+}
+
+async function loadAnalytics(){
+  const data=await api('api/analytics');
+  const hits=data.filter(d=>d.type==='cache_hit').length;
+  const views=data.filter(d=>d.type==='page_view').length;
+  document.getElementById('a-hits').textContent=hits;
+  document.getElementById('a-views').textContent=views;
+  const regions={};
+  data.forEach(d=>{if(d.region)regions[d.region]=(regions[d.region]||0)+1});
+  const topR=Object.entries(regions).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('a-region').textContent=topR?topR[0]+' ('+topR[1]+')':'-';
+  const tb=document.getElementById('a-table');
+  tb.innerHTML=data.slice(0,50).map(d=>\`<tr>
+    <td style="font-size:11px">\${new Date(d.ts).toLocaleTimeString('ko-KR')}</td>
+    <td><span class="badge \${d.type==='cache_hit'?'badge-green':'badge-yellow'}">\${d.type}</span></td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">\${d.path||'-'}</td>
+    <td>\${d.region||'-'}</td>
+    <td><span class="tag">\${d.label||'-'}</span></td>
+    <td>\${d.latencyMs?d.latencyMs+'ms':'-'}</td>
+  </tr>\`).join('');
+}
+
+async function loadIps(){
+  const ips=await api('api/blocked_ips');
+  const tb=document.getElementById('ip-table');
+  tb.innerHTML=(ips||[]).map(k=>{
+    const ip=k.replace('state:block:','');
+    return \`<tr><td><code>\${ip}</code></td>
+      <td><button class="btn btn-sm btn-primary" onclick="unblockIp('\${ip}')">해제</button></td></tr>\`;
+  }).join('')||\`<tr><td colspan="2" style="color:#64748b;text-align:center">차단된 IP 없음</td></tr>\`;
+}
+
+async function blockIp(){
+  const ip=document.getElementById('block-ip-input').value.trim();
+  if(!ip) return;
+  await api('api/block_ip/'+encodeURIComponent(ip));
+  toast(ip+' 차단 완료');
+  document.getElementById('block-ip-input').value='';
+  loadIps();
+}
+
+async function unblockIp(ip){
+  await api('api/unblock_ip/'+encodeURIComponent(ip));
+  toast(ip+' 차단 해제');
+  loadIps();
+}
+
+async function purgeCache(){
+  if(!confirm('캐시를 전체 삭제하시겠습니까?')) return;
+  await api('api/purge_cache');
+  toast('캐시 삭제 완료');
+  loadCacheStats();
+}
+
+async function genSitemap(){
+  const r=await api('api/generate_sitemap');
+  toast('사이트맵 생성 완료 ('+r.count+'개 URL)');
+}
+
+async function genRss(){
+  const r=await api('api/generate_rss');
+  toast('RSS 생성 완료 ('+r.count+'개 항목)');
+}
+
+// ── SSL/TLS 관리 함수 (API 토큰 불필요) ────────────────────────────
+async function loadSslStatus() {
+  const d = await api('api/ssl_status');
+  document.getElementById('ssl-total').textContent  = d.totalCount ?? 0;
+  document.getElementById('ssl-active').textContent = d.activeCount ?? 0;
+
+  const routes = d.routes || [];
+  const tb     = document.getElementById('ssl-route-tbody');
+  const empty  = document.getElementById('ssl-empty');
+
+  if (routes.length === 0) {
+    empty.style.display = '';
+    tb.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tb.innerHTML = routes.map(r => {
+    const sc = r.sslStatus === 'active'      ? 'badge-green'
+             : r.sslStatus === 'pending'     ? 'badge-yellow'
+             : r.sslStatus === 'unavailable' ? 'badge-red'
+             : 'badge-yellow';
+    const statusLabel = r.sslStatus === 'active'      ? '✅ 활성'
+                      : r.sslStatus === 'pending'     ? '⏳ 대기'
+                      : r.sslStatus === 'unavailable' ? '❌ 불가'
+                      : '❓ 확인중';
+    const byLabel = r.addedBy === 'auto' ? '🤖 자동' : '👤 수동';
+    const tlsCol  = r.tlsVersion && r.tlsVersion !== '-'
+      ? \`<span class="badge badge-green">\${r.tlsVersion}</span>\`
+      : '<span class="badge badge-yellow">미확인</span>';
+    const http3   = r.http3Enabled ? '<span class="badge badge-green">H3✅</span>' : '';
+    const hsts    = r.hstsEnabled  ? \`<span class="badge badge-green">HSTS(\${r.hstsMaxAge ? Math.round(r.hstsMaxAge/86400)+'d' : '?'})</span>\` : '<span class="badge badge-yellow">HSTS없음</span>';
+    return \`<tr>
+      <td><strong>\${r.host}</strong></td>
+      <td><span class="badge \${sc}">\${statusLabel}</span></td>
+      <td>\${tlsCol} \${http3}</td>
+      <td style="font-size:12px">\${r.issuer || 'Cloudflare Universal SSL'}</td>
+      <td>\${hsts}</td>
+      <td><span class="badge badge-green">✅ 자동</span></td>
+      <td><span class="tag">\${byLabel}</span></td>
+      <td>
+        <button class="btn btn-sm btn-primary" onclick="sslRefreshOne('\${r.host}')">🔍</button>
+        <button class="btn btn-sm btn-danger"  onclick="sslRemoveRoute('\${r.host}')" style="margin-left:4px">🗑️</button>
+      </td>
+    </tr>\`;
+  }).join('');
+}
+
+async function sslAddRoute() {
+  const host = document.getElementById('ssl-add-host').value.trim();
+  if (!host) { toast('도메인을 입력하세요'); return; }
+  const r = await fetch('/panel/api/ssl_add_route?secret='+encodeURIComponent(SECRET), {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ host }),
+  }).then(r=>r.json());
+  toast(r.ok ? r.message : r.message);
+  document.getElementById('ssl-add-host').value = '';
+  if (r.ok) loadSslStatus();
+}
+
+async function sslRemoveRoute(host) {
+  if (!confirm(\`\${host} 을(를) 목록에서 삭제하시겠습니까?\`)) return;
+  const r = await fetch('/panel/api/ssl_remove_route?secret='+encodeURIComponent(SECRET), {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ host }),
+  }).then(r=>r.json());
+  toast(r.message);
+  loadSslStatus();
+}
+
+async function sslRefreshOne(host) {
+  toast(\`\${host} 인증서 확인 중...\`);
+  const r = await fetch('/panel/api/ssl_refresh?secret='+encodeURIComponent(SECRET), {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ host }),
+  }).then(r=>r.json());
+  toast(r.sslStatus === 'active' ? \`\${host} — SSL 정상 ✅\` : \`\${host} — \${r.sslStatus}\`);
+  loadSslStatus();
+}
+
+async function sslRefreshAll() {
+  toast('전체 인증서 재확인 중...');
+  const r = await fetch('/panel/api/ssl_refresh?secret='+encodeURIComponent(SECRET), {method:'POST'}).then(r=>r.json());
+  toast(\`재확인 완료: \${r.refreshed?.length ?? 0}개 갱신, \${r.skipped ?? 0}개 스킵\`);
+  loadSslStatus();
+}
+
+// [v9] loadLinux() 제거 — 연결된 api/linux_status가 더 이상 존재하지 않음.
+
+async function loadDomainInfo() {
+  const d = await api('api/domain_info');
+  document.getElementById('d-resolved').textContent = d.resolved   || '-';
+  document.getElementById('d-example').innerHTML = d.isExampleCom
+    ? '<span class="badge badge-red">⚠️ example.com 감지</span>'
+    : '<span class="badge badge-green">✅ 정상</span>';
+  const routeEl = document.getElementById('d-route');
+  if (routeEl) routeEl.textContent = d.routeDetectedHost || '-';
+  const methodEl = document.getElementById('d-method');
+  if (methodEl) methodEl.textContent = d.detectionMethod || '-';
+  const autoEl = document.getElementById('d-auto-info');
+  if (autoEl) {
+    autoEl.innerHTML = [
+      d.routeDetectedHost && d.routeDetectedHost !== '(미감지 — 첫 요청 후 라우트 자동저장)'
+        ? '🛣️ 라우트 감지 도메인: <strong>' + d.routeDetectedHost + '</strong>'
+        : '🛣️ 라우트 감지 도메인: (첫 요청 후 ssl:routes에 자동저장)',
+      d.autoDetectedHost  ? '🔍 KV 감지 도메인: <strong>' + d.autoDetectedHost  + '</strong>' : '🔍 KV 감지 도메인: (첫 요청 후 자동저장)',
+      d.autoDetectedTitle ? '📝 자동감지 제목: <strong>'  + d.autoDetectedTitle + '</strong>' : '📝 자동감지 제목: (홈 첫 방문 후 자동저장)',
+      d.memCacheHost      ? '⚡ 메모리 캐시: <strong>'    + d.memCacheHost      + '</strong>' : '⚡ 메모리 캐시: (비어있음)',
+    ].join('<br>');
+  }
+}
+
+// [v9] loadK8s(), k8sReconcile() 제거 — 연결된 api/k8s_status,
+// api/k8s_events, api/k8s_reconcile이 더 이상 존재하지 않음.
+
+async function loadCachePolicyInfo() {
+  const log = await api('api/cache_reset_log');
+  const el  = document.getElementById('cache-reset-info');
+  if (!log || !log.ts) {
+    el.innerHTML = '아직 캐시 초기화 기록이 없습니다. 첫 Cron 실행을 기다리세요.';
+    return;
+  }
+  const last = new Date(log.ts).toLocaleString('ko-KR');
+  const next = log.nextResetAt ? new Date(log.nextResetAt).toLocaleString('ko-KR') : '-';
+  const pol  = log.ttlPolicy || {};
+  el.innerHTML = \`
+    🕐 마지막 초기화: <strong>\${last}</strong><br>
+    ⏭️ 다음 초기화 예정: <strong>\${next}</strong><br><br>
+    📋 TTL 정책:<br>
+    \${Object.entries(pol).map(([k,v])=>\`  &nbsp;&nbsp;<span class="tag">\${k}</span> \${v}초\`).join('<br>')}
+  \`;
+}
+
+// 초기 로드 (모든 함수 정의 완료 후)
+document.addEventListener('DOMContentLoaded', () => { loadDashboard(); });
+</script>
+</body>
+</html>`;
+}

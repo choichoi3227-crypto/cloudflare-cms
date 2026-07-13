@@ -17,41 +17,41 @@ const navItems = [
   <title>{title} - CloudPress Admin</title><link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style is:global>@import '../styles/global.css';</style>
 </head>
-<body class="min-h-screen bg-surface-950">
-  <aside class="fixed left-0 top-0 bottom-0 w-64 bg-surface-900 border-r border-surface-800 z-40 hidden lg:block">
+<body class="min-h-screen bg-surface-50">
+  <aside class="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-surface-200 z-40 hidden lg:block">
     <div class="p-4">
       <a href="/admin" class="flex items-center gap-2 mb-2">
         <div class="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center text-red-400">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg>
         </div>
-        <span class="text-lg font-bold text-white">Admin</span>
+        <span class="text-lg font-bold text-surface-900">Admin</span>
       </a>
       <p class="text-xs text-surface-600 mb-6">CloudPress 플랫폼 관리자</p>
       <nav class="space-y-1">
         {navItems.map((item) => (
-          <a href={item.href} class:list={['flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors', activeNav === item.key ? 'bg-red-500/10 text-red-400' : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800']}>
+          <a href={item.href} class:list={['flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors', activeNav === item.key ? 'bg-red-500/10 text-red-400' : 'text-surface-400 hover:text-surface-800 hover:bg-surface-100']}>
             {item.label}
           </a>
         ))}
       </nav>
-      <div class="mt-6 pt-6 border-t border-surface-800">
-        <a href="/dashboard" class="flex items-center gap-2 text-xs text-surface-500 hover:text-surface-300">
+      <div class="mt-6 pt-6 border-t border-surface-200">
+        <a href="/dashboard" class="flex items-center gap-2 text-xs text-surface-400 hover:text-surface-600">
           <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="15 18 9 12 15 6"/></svg>
           일반 대시보드로 돌아가기
         </a>
       </div>
     </div>
-    <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-surface-800">
+    <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-surface-200">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 font-semibold text-sm">{user?.username?.charAt(0).toUpperCase() || 'A'}</div>
-        <div class="flex-1 min-w-0"><p class="text-sm font-medium text-surface-200 truncate">{user?.username || '관리자'}</p><p class="text-xs text-surface-500 truncate">{user?.email || ''}</p></div>
-        <a href="/auth/logout" class="text-surface-500 hover:text-surface-300"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+        <div class="flex-1 min-w-0"><p class="text-sm font-medium text-surface-800 truncate">{user?.username || '관리자'}</p><p class="text-xs text-surface-400 truncate">{user?.email || ''}</p></div>
+        <a href="/auth/logout" class="text-surface-400 hover:text-surface-600"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
       </div>
     </div>
   </aside>
   <header class="lg:hidden fixed top-0 left-0 right-0 z-40 glass">
     <div class="flex items-center justify-between h-14 px-4">
-      <a href="/admin" class="flex items-center gap-2"><div class="w-7 h-7 bg-red-500/20 rounded-lg flex items-center justify-center text-red-400"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg></div><span class="font-bold text-white text-sm">Admin</span></a>
+      <a href="/admin" class="flex items-center gap-2"><div class="w-7 h-7 bg-red-500/20 rounded-lg flex items-center justify-center text-red-400"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg></div><span class="font-bold text-surface-900 text-sm">Admin</span></a>
     </div>
   </header>
   <div class="lg:pl-64 pt-14 lg:pt-0"><div class="min-h-screen p-4 sm:p-6 lg:p-8"><div class="w-full max-w-6xl mx-auto"><slot /></div></div></div>

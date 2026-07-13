@@ -11,10 +11,10 @@ const user = Astro.locals.user;
   <title>{title} - CloudPress</title><link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style is:global>@import '../styles/global.css';</style>
 </head>
-<body class="min-h-screen bg-surface-950">
-  <aside class="fixed left-0 top-0 bottom-0 w-64 bg-surface-900 border-r border-surface-800 z-40 hidden lg:block">
+<body class="min-h-screen bg-surface-50">
+  <aside class="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-surface-200 z-40 hidden lg:block">
     <div class="p-4">
-      <a href="/dashboard" class="flex items-center gap-2 mb-8"><div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="text-lg font-bold text-white">Cloud<span class="text-brand-500">Press</span></span></a>
+      <a href="/dashboard" class="flex items-center gap-2 mb-8"><div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="text-lg font-bold text-surface-900">Cloud<span class="text-brand-500">Press</span></span></a>
       <nav class="space-y-1">
         {[
           { key:'dashboard', label:'대시보드', icon:'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -25,22 +25,22 @@ const user = Astro.locals.user;
           { key:'migration', label:'이전/복원', icon:'M4 4v6h6M20 20v-6h-6M20 9A8 8 0 006.7 5.1L4 10m16 4l-2.7 4.9A8 8 0 014 15' },
           { key:'settings', label:'설정', icon:'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' },
         ].map((item) => (
-          <a href={item.key === 'dashboard' ? '/dashboard' : `/dashboard/${item.key}`} class:list={['flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors', activeNav === item.key ? 'bg-brand-500/10 text-brand-500' : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800']}>
+          <a href={item.key === 'dashboard' ? '/dashboard' : `/dashboard/${item.key}`} class:list={['flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors', activeNav === item.key ? 'bg-brand-500/10 text-brand-500' : 'text-surface-400 hover:text-surface-800 hover:bg-surface-100']}>
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d={item.icon}/></svg>
             {item.label}
           </a>
         ))}
       </nav>
     </div>
-    <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-surface-800">
+    <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-surface-200">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-500 font-semibold text-sm">{user?.username?.charAt(0).toUpperCase() || 'U'}</div>
-        <div class="flex-1 min-w-0"><p class="text-sm font-medium text-surface-200 truncate">{user?.username || '사용자'}</p><p class="text-xs text-surface-500 truncate">{user?.email || ''}</p></div>
-        <a href="/auth/logout" class="text-surface-500 hover:text-surface-300"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+        <div class="flex-1 min-w-0"><p class="text-sm font-medium text-surface-800 truncate">{user?.username || '사용자'}</p><p class="text-xs text-surface-400 truncate">{user?.email || ''}</p></div>
+        <a href="/auth/logout" class="text-surface-400 hover:text-surface-600"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
       </div>
     </div>
   </aside>
-  <header class="lg:hidden fixed top-0 left-0 right-0 z-40 glass"><div class="flex items-center justify-between h-14 px-4"><a href="/dashboard" class="flex items-center gap-2"><div class="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="font-bold text-white text-sm">Cloud<span class="text-brand-500">Press</span></span></a></div></header>
+  <header class="lg:hidden fixed top-0 left-0 right-0 z-40 glass"><div class="flex items-center justify-between h-14 px-4"><a href="/dashboard" class="flex items-center gap-2"><div class="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="font-bold text-surface-900 text-sm">Cloud<span class="text-brand-500">Press</span></span></a></div></header>
   <div class="lg:pl-64 pt-14 lg:pt-0"><div class="min-h-screen flex items-start justify-center p-4 sm:p-6 lg:p-8"><div class="w-full max-w-5xl"><slot /></div></div></div>
 </body>
 </html>

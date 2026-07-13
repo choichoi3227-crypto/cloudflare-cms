@@ -1,0 +1,116 @@
+---
+// platform/src/pages/dashboard/hosting/[id].astro
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { parseSessionCookie } from '../../../lib/session';
+import { apiClient } from '../../../lib/api-client';
+import type { Site } from '@shared/types/site';
+
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
+
+const { id } = Astro.params;
+const siteResult = await apiClient.get<Site>(`/api/sites/${id}`, Astro.request.headers.get('cookie'));
+
+if (!siteResult.success || !siteResult.data) {
+  return Astro.redirect('/dashboard/hosting?error=not_found');
+}
+
+const site = siteResult.data;
+
+const statusLabels: Record<string, { label: string; className: string }> = {
+  active: { label: '활성', className: 'bg-green-500/10 text-green-400' },
+  provisioning: { label: '준비 중', className: 'bg-yellow-500/10 text-yellow-400' },
+  suspended: { label: '일시 중지', className: 'bg-orange-500/10 text-orange-400' },
+  deleted: { label: '삭제됨', className: 'bg-red-500/10 text-red-400' },
+};
+const statusInfo = statusLabels[site.status] || statusLabels.provisioning;
+---
+<DashboardLayout title={`${site.site_name} - 호스팅 상세`} activeNav="hosting">
+  <div class="mb-8">
+    <a href="/dashboard/sites" class="text-sm text-surface-500 hover:text-surface-300 mb-3 inline-flex items-center gap-1">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="15 18 9 12 15 6"/></svg>
+      내 사이트
+    </a>
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <div class="flex items-center gap-3 mb-1">
+          <h1 class="text-2xl font-bold text-white">{site.site_name}</h1>
+          <span class:list={['px-2 py-1 text-xs font-medium rounded-full', statusInfo.className]}>{statusInfo.label}</span>
+        </div>
+        <p class="text-surface-400">{site.domain}</p>
+      </div>
+      <div class="flex gap-2">
+        <a href={`https://${site.domain}/wp-admin/`} target="_blank" rel="noreferrer" class="btn-secondary text-sm">WordPress 관리자</a>
+        <a href={`https://${site.domain}/`} target="_blank" rel="noreferrer" class="btn-secondary text-sm">사이트 열기</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div class="glass rounded-xl p-5"><p class="text-xs text-surface-500 mb-1">호스팅 모드</p><p class="text-sm font-semibold text-white">Single Worker</p></div>
+    <div class="glass rounded-xl p-5"><p class="text-xs text-surface-500 mb-1">PHP-WASM Worker</p><p class="text-sm font-semibold text-white truncate">{site.php_wasm_worker_name || '—'}</p></div>
+    <div class="glass rounded-xl p-5"><p class="text-xs text-surface-500 mb-1">Shard 수</p><p class="text-sm font-semibold text-white">{site.shard_count ?? 10}개</p></div>
+    <div class="glass rounded-xl p-5"><p class="text-xs text-surface-500 mb-1">활성 Shard</p><p class="text-sm font-semibold text-white">{site.active_shard_key || 'database01.db'}</p></div>
+  </div>
+
+  <section class="glass rounded-xl p-6 mb-6">
+    <h2 class="text-lg font-semibold text-white mb-4">인프라 정보</h2>
+    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+      <div><dt class="text-surface-500 mb-1">사이트 ID</dt><dd class="text-surface-200 font-mono text-xs break-all">{site.id}</dd></div>
+      <div><dt class="text-surface-500 mb-1">Worker</dt><dd class="text-surface-200 font-mono text-xs break-all">{site.worker_id || '—'}</dd></div>
+      <div><dt class="text-surface-500 mb-1">D1 Database ID</dt><dd class="text-surface-200 font-mono text-xs break-all">{site.d1_id || '—'}</dd></div>
+      <div><dt class="text-surface-500 mb-1">KV Namespace ID</dt><dd class="text-surface-200 font-mono text-xs break-all">{site.kv_id || '—'}</dd></div>
+      <div><dt class="text-surface-500 mb-1">WordPress 관리자 계정</dt><dd class="text-surface-200">{site.wordpress_admin_username || '—'}</dd></div>
+      <div><dt class="text-surface-500 mb-1">생성일</dt><dd class="text-surface-200">{new Date(site.created_at * 1000).toLocaleString('ko-KR')}</dd></div>
+    </dl>
+    {site.wordpress_admin_password_hint && (
+      <div class="mt-4 p-3 rounded-lg bg-surface-800/50 border border-surface-700 text-xs text-surface-400">
+        초기 비밀번호는 사이트 생성 시 1회만 표시됩니다. 분실 시 WordPress 관리자 화면에서 재설정해주세요.
+      </div>
+    )}
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+    <a class="btn-secondary text-sm justify-center" href="/dashboard/domains">도메인 관리</a>
+    <a class="btn-secondary text-sm justify-center" href="/dashboard/cdn">CDN 관리</a>
+    <a class="btn-secondary text-sm justify-center" href="/dashboard/migration">마이그레이션</a>
+  </section>
+
+  <section class="glass rounded-xl p-6 border border-red-500/20">
+    <h2 class="text-lg font-semibold text-red-400 mb-2">위험 구역</h2>
+    <p class="text-sm text-surface-400 mb-4">호스팅을 삭제하면 도메인 라우팅이 해제되고 해당 사이트 정보가 더 이상 대시보드에 표시되지 않습니다. 이 작업은 되돌릴 수 없습니다.</p>
+    <button id="delete-hosting-btn" data-site-id={site.id} class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-500/10 text-red-400 font-medium rounded-lg border border-red-500/30 hover:bg-red-500/20 transition-colors">
+      호스팅 삭제
+    </button>
+    <div id="delete-error" class="hidden mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400"></div>
+  </section>
+</DashboardLayout>
+<script>
+  const btn = document.getElementById('delete-hosting-btn') as HTMLButtonElement | null;
+  const errorEl = document.getElementById('delete-error') as HTMLDivElement | null;
+  btn?.addEventListener('click', async () => {
+    const siteId = btn.dataset.siteId;
+    if (!siteId) return;
+    const confirmed = window.confirm('정말로 이 호스팅을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');
+    if (!confirmed) return;
+    btn.disabled = true;
+    btn.textContent = '삭제 중...';
+    errorEl?.classList.add('hidden');
+    try {
+      const r = await fetch(`/api/sites/${siteId}`, { method: 'DELETE' });
+      const result = await r.json();
+      if (result.success) {
+        window.location.href = '/dashboard/sites';
+      } else {
+        if (errorEl) { errorEl.textContent = result.error?.message || '삭제에 실패했습니다.'; errorEl.classList.remove('hidden'); }
+        btn.disabled = false;
+        btn.textContent = '호스팅 삭제';
+      }
+    } catch {
+      if (errorEl) { errorEl.textContent = '네트워크 오류가 발생했습니다.'; errorEl.classList.remove('hidden'); }
+      btn.disabled = false;
+      btn.textContent = '호스팅 삭제';
+    }
+  });
+</script>

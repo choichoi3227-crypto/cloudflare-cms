@@ -5,6 +5,18 @@ export default {
     extend: {
       colors: {
         // 밝은 테마 - Loword Bridge 스타일
+        brand: {
+          50: '#f0f7ff',
+          100: '#e0effe',
+          200: '#c1dcfd',
+          300: '#a2cbfc',
+          400: '#3b82f6',
+          500: '#2563eb',
+          600: '#1d4ed8',
+          700: '#1e40af',
+          800: '#1e3a8a',
+          900: '#172554',
+        },
         primary: {
           50: '#f0f7ff',
           100: '#e0effe',

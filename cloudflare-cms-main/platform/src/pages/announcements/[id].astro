@@ -1,0 +1,313 @@
+---
+// 공지사항 상세 페이지
+// 경로: /announcements/[id]
+import PublicLayout from '@layouts/PublicLayout.astro';
+import { AnnouncementManager } from '@lib/announcement-manager';
+
+interface Props {
+  params: {
+    id: string;
+  };
+}
+
+// URL에서 공지사항 ID 추출
+const { id } = Astro.params;
+
+// 데모 공지사항 데이터 (실제로는 API에서 가져옴)
+const announcements = [
+  {
+    id: '1',
+    title: '🎉 Cloud Press 2.0 출시',
+    content: `# Cloud Press 2.0이 드디어 출시되었습니다!
+
+새로운 기능들:
+- ⚡ 50% 더 빠른 성능
+- 🔒 강화된 보안
+- 🎨 새로운 디자인
+- 📊 고급 분석 도구
+- 🌍 다국어 지원
+
+이번 업데이트는 저희가 사용자 피드백을 반영하여 6개월간 개발한 결과입니다.`,
+    excerpt: '새로운 성능, 보안, 디자인을 제공하는 Cloud Press 2.0이 출시되었습니다.',
+    author: { name: 'Cloud Press 팀', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=team' },
+    priority: 'high' as const,
+    category: 'update' as const,
+    createdAt: new Date('2026-07-10'),
+    publishedAt: new Date('2026-07-10'),
+    tags: ['릴리즈', '업데이트', '신기능'],
+    viewCount: 1234,
+  },
+  {
+    id: '2',
+    title: '🚨 서버 점검 안내',
+    content: `# 예정된 서버 점검 안내
+
+**일시:** 2026년 7월 15일 00:00 ~ 06:00 (KST)
+**예상 영향:** 약 30분 정도 서비스 중단
+
+점검 내용:
+- 데이터베이스 최적화
+- 서버 보안 업데이트
+- 백업 시스템 점검
+
+이 시간 동안 서비스 이용이 불가능할 수 있습니다.
+불편을 드려 죄송합니다.`,
+    excerpt: '7월 15일 서버 점검이 예정되어 있습니다.',
+    priority: 'critical' as const,
+    category: 'maintenance' as const,
+    createdAt: new Date('2026-07-08'),
+    publishedAt: new Date('2026-07-08'),
+    tags: ['점검', '공지'],
+  },
+  {
+    id: '3',
+    title: '🔒 보안 패치 업데이트',
+    content: `# 중요한 보안 패치가 배포되었습니다
+
+**패치 버전:** 2.0.5
+**업데이트 날짜:** 2026-07-12
+
+수정 사항:
+- SSL/TLS 취약점 수정
+- XSS 공격 방어 강화
+- CSRF 토큰 갱신 로직 개선
+
+모든 사용자에게 자동으로 적용되었습니다.`,
+    excerpt: '중요 보안 패치가 업데이트되었습니다.',
+    priority: 'high' as const,
+    category: 'security' as const,
+    createdAt: new Date('2026-07-12'),
+    publishedAt: new Date('2026-07-12'),
+    tags: ['보안', '패치'],
+  },
+];
+
+// ID로 공지사항 찾기
+const announcement = announcements.find(a => a.id === id);
+
+if (!announcement) {
+  return Astro.redirect('/announcements');
+}
+
+// 이전/다음 공지사항 찾기
+const currentIndex = announcements.findIndex(a => a.id === id);
+const previousAnnouncement = currentIndex > 0 ? announcements[currentIndex - 1] : null;
+const nextAnnouncement = currentIndex < announcements.length - 1 ? announcements[currentIndex + 1] : null;
+
+// 관련 공지사항 (같은 카테고리, 최근 3개)
+const relatedAnnouncements = announcements
+  .filter(a => a.id !== id && a.category === announcement.category)
+  .slice(0, 3);
+
+// 날짜 포맷팅
+const formatDate = (date: Date) => {
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
+// Markdown 렌더링 (간단한 버전)
+const renderMarkdown = (md: string) => {
+  return md
+    .split('\n')
+    .map(line => {
+      if (line.startsWith('# ')) return `<h1 class="text-3xl font-bold my-4">${line.slice(2)}</h1>`;
+      if (line.startsWith('## ')) return `<h2 class="text-2xl font-bold my-3">${line.slice(3)}</h2>`;
+      if (line.startsWith('- ')) return `<li class="ml-4 my-1">${line.slice(2)}</li>`;
+      if (line.startsWith('**') && line.endsWith('**')) {
+        return `<p class="font-bold my-2">${line.slice(2, -2)}</p>`;
+      }
+      if (line.trim() === '') return '<div class="my-2"></div>';
+      return `<p class="my-2">${line}</p>`;
+    })
+    .join('');
+};
+---
+
+<PublicLayout>
+  <div class="min-h-screen bg-surface-50 py-16 px-4">
+    <div class="max-w-4xl mx-auto">
+      <!-- 헤더 -->
+      <div class="bg-white rounded-xl shadow-md p-8 mb-8">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-2">
+            <span
+              class={`px-3 py-1 rounded-full text-sm font-semibold ${
+                announcement.priority === 'critical'
+                  ? 'bg-danger-100 text-danger-700'
+                  : announcement.priority === 'high'
+                    ? 'bg-warning-100 text-warning-700'
+                    : 'bg-info-100 text-info-700'
+              }`}
+            >
+              {announcement.priority === 'critical' ? '긴급' : announcement.priority === 'high' ? '중요' : '일반'}
+            </span>
+            <span class="px-3 py-1 rounded-full text-sm font-semibold bg-primary-100 text-primary-700">
+              {announcement.category === 'notice'
+                ? '공지'
+                : announcement.category === 'update'
+                  ? '업데이트'
+                  : announcement.category === 'maintenance'
+                    ? '점검'
+                    : announcement.category === 'security'
+                      ? '보안'
+                      : '기타'}
+            </span>
+          </div>
+          <span class="text-sm text-surface-500">{formatDate(announcement.publishedAt)}</span>
+        </div>
+
+        <h1 class="text-4xl font-bold text-surface-900 mb-4">{announcement.title}</h1>
+
+        {
+          announcement.author && (
+            <div class="flex items-center space-x-3 py-4 border-y border-surface-200">
+              <img
+                src={announcement.author.avatar}
+                alt={announcement.author.name}
+                class="w-10 h-10 rounded-full"
+              />
+              <div>
+                <p class="font-semibold text-surface-900">{announcement.author.name}</p>
+                <p class="text-sm text-surface-500">작성자</p>
+              </div>
+            </div>
+          )
+        }
+
+        <div class="mt-6 flex items-center justify-between text-sm text-surface-500">
+          <span>조회수: {announcement.viewCount?.toLocaleString() || '0'}</span>
+          <div class="flex items-center space-x-4">
+            <button class="hover:text-primary-600 transition-colors flex items-center space-x-1">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.646 7.23a2 2 0 01-1.789 1.106H7a2 2 0 01-2-2V9a6 6 0 0112-3z" />
+              </svg>
+              <span>도움됨</span>
+            </button>
+            <button class="hover:text-primary-600 transition-colors flex items-center space-x-1">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C9.589 12.430 10 11.129 10 9.5 10 5.91 7.716 3 5 3s-5 2.91-5 6.5S2.284 16 5 16c.342 0 .674-.027 1-.07m5.4-13.576v.002m0 .344v4.368c0 1.993.97 3.76 2.469 4.871M19 12a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <span>공유</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 본문 -->
+      <div class="bg-white rounded-xl shadow-md p-8 mb-8">
+        <div class="prose max-w-none" set:html={renderMarkdown(announcement.content)} />
+
+        {
+          announcement.tags && announcement.tags.length > 0 && (
+            <div class="mt-8 pt-8 border-t border-surface-200">
+              <p class="text-sm font-semibold text-surface-600 mb-3">태그</p>
+              <div class="flex flex-wrap gap-2">
+                {announcement.tags.map(tag => (
+                  <a
+                    href={`/announcements?tag=${tag}`}
+                    class="px-3 py-1 bg-surface-100 hover:bg-primary-50 text-surface-700 hover:text-primary-600 rounded-full text-sm transition-colors"
+                  >
+                    #{tag}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )
+        }
+      </div>
+
+      <!-- 네비게이션 -->
+      <div class="grid md:grid-cols-2 gap-6 mb-8">
+        {
+          previousAnnouncement ? (
+            <a
+              href={`/announcements/${previousAnnouncement.id}`}
+              class="group bg-white rounded-xl shadow-md p-6 hover:shadow-lg hover:bg-primary-50 transition-all"
+            >
+              <div class="flex items-start space-x-3">
+                <svg class="w-5 h-5 text-surface-400 group-hover:text-primary-600 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                <div>
+                  <p class="text-sm text-surface-500 font-semibold">이전 공지사항</p>
+                  <p class="text-lg font-semibold text-surface-900 group-hover:text-primary-600 transition-colors line-clamp-2">
+                    {previousAnnouncement.title}
+                  </p>
+                </div>
+              </div>
+            </a>
+          ) : (
+            <div />
+          )
+        }
+
+        {
+          nextAnnouncement ? (
+            <a
+              href={`/announcements/${nextAnnouncement.id}`}
+              class="group bg-white rounded-xl shadow-md p-6 hover:shadow-lg hover:bg-primary-50 transition-all text-right"
+            >
+              <div class="flex items-start justify-end space-x-3 space-x-reverse">
+                <svg class="w-5 h-5 text-surface-400 group-hover:text-primary-600 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+                <div>
+                  <p class="text-sm text-surface-500 font-semibold">다음 공지사항</p>
+                  <p class="text-lg font-semibold text-surface-900 group-hover:text-primary-600 transition-colors line-clamp-2">
+                    {nextAnnouncement.title}
+                  </p>
+                </div>
+              </div>
+            </a>
+          ) : (
+            <div />
+          )
+        }
+      </div>
+
+      <!-- 관련 공지사항 -->
+      {
+        relatedAnnouncements.length > 0 && (
+          <div class="bg-white rounded-xl shadow-md p-8">
+            <h2 class="text-2xl font-bold text-surface-900 mb-6">관련 공지사항</h2>
+            <div class="grid md:grid-cols-3 gap-6">
+              {relatedAnnouncements.map(related => (
+                <a
+                  href={`/announcements/${related.id}`}
+                  class="group bg-surface-50 rounded-lg p-4 hover:shadow-md hover:bg-primary-50 transition-all"
+                >
+                  <div class="flex items-center space-x-2 mb-2">
+                    <span class="px-2 py-1 rounded text-xs font-semibold bg-primary-100 text-primary-700">
+                      {related.category === 'notice'
+                        ? '공지'
+                        : related.category === 'update'
+                          ? '업데이트'
+                          : '기타'}
+                    </span>
+                  </div>
+                  <h3 class="font-semibold text-surface-900 group-hover:text-primary-600 transition-colors line-clamp-2 mb-2">
+                    {related.title}
+                  </h3>
+                  <p class="text-sm text-surface-500">{formatDate(related.publishedAt)}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      <!-- 뒤로가기 -->
+      <div class="mt-8 text-center">
+        <a href="/announcements" class="inline-flex items-center space-x-2 text-primary-600 hover:text-primary-700 font-semibold transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>공지사항 목록으로</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</PublicLayout>

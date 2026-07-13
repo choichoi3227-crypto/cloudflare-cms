@@ -1,0 +1,19 @@
+{
+  "name": "cloudpress-platform",
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_date": "2026-07-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    // 관리자 페이지(/admin) 접근을 허용할 이메일을 쉼표로 구분해 입력하세요.
+    // 비워두면 누구도 /admin에 접근할 수 없습니다. 운영 환경에서는 wrangler secret 또는
+    // 대시보드 환경변수로 재정의하는 것을 권장합니다.
+    "ADMIN_EMAILS": ""
+  }
+}

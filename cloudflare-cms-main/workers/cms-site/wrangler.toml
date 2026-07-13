@@ -1,0 +1,23 @@
+# workers/cms-site/wrangler.toml
+name = "cloudpress-cms-site"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["wasm"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cp_site_template"
+database_id = "9e99a025-5356-40a3-a58a-871095cc8711"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "YOUR_SITE_KV_ID"
+
+[vars]
+ENVIRONMENT = "production"
+ADMIN_PATH = "cp-admin"
+# ADMIN_SECRET은 wrangler secret put으로 설정: wrangler secret put ADMIN_SECRET
+# PHP-WASM 런타임 설정 예시:
+# PHP_WASM_URL = "https://example.com/php.wasm"
+# PHP_WASM_ENTRYPOINT = "php_wasm_run"
+# PHP_WASM_MEMORY_PAGES = "128"

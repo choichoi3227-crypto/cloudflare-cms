@@ -1,0 +1,177 @@
+---
+// 콘솔 설정 페이지
+// 경로: /console/settings
+import ConsoleLayout from '@layouts/ConsoleLayout.astro';
+---
+
+<ConsoleLayout>
+  <div class="p-8 space-y-8">
+    <!-- 헤더 -->
+    <div>
+      <h1 class="text-3xl font-bold text-surface-900 mb-2">설정</h1>
+      <p class="text-surface-600">콘솔 계정 설정을 관리하세요</p>
+    </div>
+
+    <div class="max-w-3xl">
+      {/* 프로필 설정 */}
+      <div class="bg-white rounded-xl shadow-md p-8 mb-6">
+        <h2 class="text-2xl font-bold text-surface-900 mb-6 pb-4 border-b border-surface-200">프로필</h2>
+        
+        <div class="flex items-start space-x-6 mb-8">
+          <img
+            src="https://api.dicebear.com/7.x/avataaars/svg?seed=user"
+            alt="프로필"
+            class="w-20 h-20 rounded-full"
+          />
+          <div class="flex-1">
+            <h3 class="text-lg font-bold text-surface-900 mb-2">프로필 사진</h3>
+            <p class="text-sm text-surface-600 mb-4">JPG, PNG, GIF (최대 5MB)</p>
+            <button class="bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+              사진 변경
+            </button>
+          </div>
+        </div>
+
+        <form class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-surface-900 mb-2">이름</label>
+            <input
+              type="text"
+              value="John Doe"
+              class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-surface-900 mb-2">이메일</label>
+            <input
+              type="email"
+              value="john@example.com"
+              class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-surface-900 mb-2">회사</label>
+            <input
+              type="text"
+              value="My Company"
+              class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+            />
+          </div>
+
+          <div class="flex items-center justify-end space-x-3 pt-4 border-t border-surface-200">
+            <button type="button" class="bg-surface-100 hover:bg-surface-200 text-surface-700 font-semibold py-2 px-6 rounded-lg transition-colors">
+              취소
+            </button>
+            <button type="submit" class="bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors">
+              저장
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* 보안 설정 */}
+      <div class="bg-white rounded-xl shadow-md p-8 mb-6">
+        <h2 class="text-2xl font-bold text-surface-900 mb-6 pb-4 border-b border-surface-200">보안</h2>
+        
+        {/* 비밀번호 */}
+        <div class="mb-6">
+          <div class="flex items-start justify-between">
+            <div>
+              <h3 class="font-semibold text-surface-900 mb-1">비밀번호</h3>
+              <p class="text-sm text-surface-600">마지막 변경: 2개월 전</p>
+            </div>
+            <button class="text-primary-600 hover:text-primary-700 font-semibold">변경</button>
+          </div>
+        </div>
+
+        <hr class="mb-6" />
+
+        {/* 2FA */}
+        <div class="mb-6">
+          <div class="flex items-start justify-between">
+            <div>
+              <h3 class="font-semibold text-surface-900 mb-1">2단계 인증 (2FA)</h3>
+              <p class="text-sm text-surface-600">Google Authenticator로 추가 보안</p>
+            </div>
+            <button class="px-3 py-1 bg-success-100 text-success-700 font-semibold text-sm rounded-full">활성화됨</button>
+          </div>
+        </div>
+
+        <hr class="mb-6" />
+
+        {/* 세션 */}
+        <div>
+          <h3 class="font-semibold text-surface-900 mb-3">활성 세션</h3>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between p-3 bg-surface-50 rounded-lg">
+              <div class="flex items-center space-x-3">
+                <svg class="w-5 h-5 text-surface-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+                </svg>
+                <div>
+                  <p class="font-semibold text-surface-900 text-sm">현재 기기</p>
+                  <p class="text-xs text-surface-500">Chrome on Windows</p>
+                </div>
+              </div>
+              <span class="text-xs font-semibold text-success-600">현재 로그인</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 알림 설정 */}
+      <div class="bg-white rounded-xl shadow-md p-8 mb-6">
+        <h2 class="text-2xl font-bold text-surface-900 mb-6 pb-4 border-b border-surface-200">알림</h2>
+        
+        <div class="space-y-4">
+          <label class="flex items-center space-x-3 p-3 hover:bg-surface-50 rounded-lg cursor-pointer">
+            <input type="checkbox" checked class="w-4 h-4 text-primary-600 rounded" />
+            <div>
+              <p class="font-semibold text-surface-900 text-sm">중요한 계정 알림</p>
+              <p class="text-xs text-surface-600">보안 및 결제 관련</p>
+            </div>
+          </label>
+
+          <label class="flex items-center space-x-3 p-3 hover:bg-surface-50 rounded-lg cursor-pointer">
+            <input type="checkbox" checked class="w-4 h-4 text-primary-600 rounded" />
+            <div>
+              <p class="font-semibold text-surface-900 text-sm">호스팅 알림</p>
+              <p class="text-xs text-surface-600">문제 및 유지보수 안내</p>
+            </div>
+          </label>
+
+          <label class="flex items-center space-x-3 p-3 hover:bg-surface-50 rounded-lg cursor-pointer">
+            <input type="checkbox" class="w-4 h-4 text-primary-600 rounded" />
+            <div>
+              <p class="font-semibold text-surface-900 text-sm">마케팅 이메일</p>
+              <p class="text-xs text-surface-600">새로운 기능 및 업데이트</p>
+            </div>
+          </label>
+
+          <label class="flex items-center space-x-3 p-3 hover:bg-surface-50 rounded-lg cursor-pointer">
+            <input type="checkbox" checked class="w-4 h-4 text-primary-600 rounded" />
+            <div>
+              <p class="font-semibold text-surface-900 text-sm">스토리지 알림</p>
+              <p class="text-xs text-surface-600">스토리지 부족 경고</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {/* 위험 영역 */}
+      <div class="bg-danger-50 border border-danger-200 rounded-xl p-8">
+        <h2 class="text-2xl font-bold text-danger-900 mb-6 pb-4 border-b border-danger-200">위험 영역</h2>
+        
+        <div>
+          <h3 class="font-semibold text-danger-900 mb-2">계정 삭제</h3>
+          <p class="text-sm text-danger-800 mb-4">계정을 삭제하면 모든 데이터가 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.</p>
+          <button class="bg-danger-600 hover:bg-danger-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+            계정 삭제
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</ConsoleLayout>

@@ -1,0 +1,179 @@
+---
+// 도메인 추가 페이지
+// 경로: /console/domains/add
+import ConsoleLayout from '@layouts/ConsoleLayout.astro';
+
+// 데모 호스팅 목록
+const hostings = [
+  { id: 1, name: '블로그 호스팅', domain: 'blog.example.com' },
+  { id: 2, name: '포트폴리오 호스팅', domain: 'portfolio.example.com' },
+  { id: 3, name: '회사 웹사이트', domain: 'company.example.com' },
+  { id: 4, name: 'E-커머스 호스팅', domain: 'shop.example.com' },
+];
+---
+
+<ConsoleLayout>
+  <div class="p-8 space-y-8">
+    <!-- 헤더 -->
+    <div>
+      <h1 class="text-3xl font-bold text-surface-900 mb-2">도메인 추가</h1>
+      <p class="text-surface-600">새로운 도메인을 등록하고 설정하세요</p>
+    </div>
+
+    <!-- 메인 폼 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- 폼 -->
+      <div class="lg:col-span-2">
+        <div class="bg-white rounded-xl shadow-md p-8">
+          <form id="domain-form" class="space-y-6">
+            {/* 도메인명 */}
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-3">도메인명</label>
+              <div class="flex items-center space-x-2 bg-surface-50 border border-surface-200 rounded-lg p-3 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100 transition-all">
+                <input
+                  type="text"
+                  id="domain-name"
+                  placeholder="example.com"
+                  class="flex-1 bg-transparent text-surface-900 placeholder-surface-400 outline-none"
+                  required
+                />
+              </div>
+              <p class="text-xs text-surface-500 mt-2">등록할 도메인을 입력하세요. 서브도메인도 가능합니다.</p>
+            </div>
+
+            {/* 호스팅 선택 */}
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-3">연결할 호스팅</label>
+              <select class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all outline-none" required>
+                <option value="">호스팅을 선택하세요</option>
+                {hostings.map((hosting) => (
+                  <option value={hosting.id}>{hosting.name} ({hosting.domain})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 도메인 등록자 */}
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-3">도메인 등록자</label>
+              <div class="grid grid-cols-2 gap-3">
+                {['GoDaddy', 'Namecheap', 'Cloudflare', '기타'].map((registrar) => (
+                  <label class="flex items-center space-x-3 bg-surface-50 border border-surface-200 rounded-lg p-3 cursor-pointer hover:bg-primary-50 hover:border-primary-300 transition-all">
+                    <input type="radio" name="registrar" value={registrar} class="w-4 h-4 text-primary-600" />
+                    <span class="text-sm font-medium text-surface-700">{registrar}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* DNS 설정 정보 */}
+            <div class="bg-info-50 border border-info-200 rounded-lg p-4">
+              <p class="text-sm font-semibold text-info-900 mb-2">📋 DNS 설정 안내</p>
+              <p class="text-sm text-info-800">
+                도메인 추가 후 다음 단계에서 DNS 레코드를 설정해야 합니다:
+              </p>
+              <ul class="text-sm text-info-800 mt-2 space-y-1 ml-4">
+                <li>• 호스팅 IP 주소 A 레코드 추가</li>
+                <li>• CNAME 레코드 설정 (선택사항)</li>
+                <li>• MX 레코드 설정 (이메일 사용 시)</li>
+              </ul>
+            </div>
+
+            {/* 약관 동의 */}
+            <div class="flex items-start space-x-3">
+              <input type="checkbox" id="terms" class="w-4 h-4 text-primary-600 mt-1" required />
+              <label for="terms" class="text-sm text-surface-700">
+                <span>도메인 이용 약관에 동의합니다</span>
+                <a href="#" class="text-primary-600 hover:text-primary-700 font-semibold"> 약관 보기</a>
+              </label>
+            </div>
+
+            {/* 버튼 */}
+            <div class="flex items-center space-x-3 pt-6 border-t border-surface-200">
+              <button
+                type="submit"
+                class="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center space-x-2"
+              >
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                </svg>
+                <span>도메인 추가</span>
+              </button>
+              <a href="/console/domains" class="flex-1 bg-surface-100 hover:bg-surface-200 text-surface-700 font-semibold py-3 px-6 rounded-lg transition-colors text-center">
+                취소
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* 도움말 사이드바 */}
+      <div class="space-y-6">
+        {/* 도움말 카드 1 */}
+        <div class="bg-white rounded-xl shadow-md p-6">
+          <h3 class="text-lg font-bold text-surface-900 mb-3 flex items-center space-x-2">
+            <svg class="w-5 h-5 text-primary-500" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+            <span>빠른 시작</span>
+          </h3>
+          <ol class="text-sm text-surface-700 space-y-2 list-decimal list-inside">
+            <li>도메인명 입력</li>
+            <li>호스팅 선택</li>
+            <li>등록자 선택</li>
+            <li>DNS 설정</li>
+            <li>확인 완료</li>
+          </ol>
+        </div>
+
+        {/* 도움말 카드 2 */}
+        <div class="bg-success-50 rounded-xl shadow-md p-6 border-l-4 border-success-500">
+          <h3 class="text-lg font-bold text-success-900 mb-3">💡 팁</h3>
+          <p class="text-sm text-success-800">
+            이미 다른 곳에서 구매한 도메인을 가지고 있다면, 등록자에 "기타"를 선택하고 DNS 설정으로 이동하세요.
+          </p>
+        </div>
+
+        {/* 도움말 카드 3 */}
+        <div class="bg-info-50 rounded-xl shadow-md p-6 border-l-4 border-info-500">
+          <h3 class="text-lg font-bold text-info-900 mb-3">❓ 서브도메인?</h3>
+          <p class="text-sm text-info-800">
+            blog.example.com처럼 상위 도메인 아래에 있는 도메인도 같은 방식으로 추가할 수 있습니다.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</ConsoleLayout>
+
+<script>
+  const form = document.getElementById('domain-form') as HTMLFormElement;
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(form);
+    const data = {
+      domain: formData.get('domain-name'),
+      hosting: formData.get('hosting'),
+      registrar: formData.get('registrar'),
+    };
+
+    try {
+      const response = await fetch('/api/domains', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        // 성공 메시지 표시 및 리다이렉트
+        alert('도메인이 추가되었습니다!');
+        window.location.href = '/console/domains';
+      } else {
+        alert('오류가 발생했습니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('네트워크 오류가 발생했습니다.');
+    }
+  });
+</script>

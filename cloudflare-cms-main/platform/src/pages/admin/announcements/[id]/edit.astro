@@ -1,0 +1,198 @@
+---
+// 공지사항 수정 페이지
+// 경로: /admin/announcements/[id]/edit
+import AdminConsoleLayout from '@layouts/AdminConsoleLayout.astro';
+
+const { id } = Astro.params;
+
+// 데모 공지사항 데이터
+const announcement = {
+  id,
+  title: '🎉 Cloud Press 2.0 출시',
+  excerpt: '새로운 성능, 보안, 디자인을 제공하는 Cloud Press 2.0이 출시되었습니다.',
+  content: '# Cloud Press 2.0이 드디어 출시되었습니다!\n\n새로운 기능들:\n- ⚡ 50% 더 빠른 성능\n- 🔒 강화된 보안\n- 🎨 새로운 디자인',
+  status: 'published',
+  priority: 'high',
+  category: 'update',
+  tags: ['릴리즈', '업데이트'],
+};
+---
+
+<AdminConsoleLayout>
+  <div class="p-8 space-y-8">
+    <!-- 헤더 -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-surface-900 mb-2">공지사항 수정</h1>
+        <p class="text-surface-600">공지사항 내용을 수정하세요</p>
+      </div>
+      <button class="px-4 py-2 bg-danger-500 hover:bg-danger-600 text-white font-semibold rounded-lg transition-colors">
+        삭제
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      {/* 에디터 */}
+      <div class="lg:col-span-3">
+        <div class="bg-white rounded-xl shadow-md p-8 space-y-6">
+          <form id="announcement-form" class="space-y-6">
+            {/* 제목 */}
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-3">제목</label>
+              <input
+                type="text"
+                value={announcement.title}
+                class="w-full text-2xl font-bold bg-surface-50 border border-surface-200 rounded-lg p-4 text-surface-900 placeholder-surface-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+                required
+              />
+            </div>
+
+            {/* 요약 */}
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-3">요약</label>
+              <textarea
+                rows="2"
+                class="w-full bg-surface-50 border border-surface-200 rounded-lg p-4 text-surface-900 placeholder-surface-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none resize-none"
+              >
+{announcement.excerpt}
+              </textarea>
+            </div>
+
+            {/* 본문 에디터 */}
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-3">본문</label>
+              
+              {/* 에디터 툴바 */}
+              <div class="flex items-center space-x-1 bg-surface-100 border border-surface-200 rounded-t-lg p-3 flex-wrap gap-2">
+                <button type="button" class="p-2 hover:bg-surface-200 rounded transition-colors">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6V4zm0 12h9a5 5 0 0 1 0 10H6v-10z" />
+                  </svg>
+                </button>
+                <button type="button" class="p-2 hover:bg-surface-200 rounded transition-colors">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* 에디터 */}
+              <textarea
+                id="content-editor"
+                rows="15"
+                class="w-full bg-white border border-surface-200 rounded-b-lg p-4 text-surface-900 placeholder-surface-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none resize-none font-mono"
+                required
+              >
+{announcement.content}
+              </textarea>
+            </div>
+
+            {/* 태그 */}
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-3">태그</label>
+              <input
+                type="text"
+                placeholder="태그를 입력하고 Enter를 누르세요"
+                class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 placeholder-surface-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+              />
+              <div class="flex flex-wrap gap-2 mt-3">
+                {announcement.tags.map((tag) => (
+                  <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-semibold flex items-center space-x-2">
+                    <span>{tag}</span>
+                    <button type="button" class="hover:text-primary-800">×</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* 사이드바 */}
+      <div class="space-y-6">
+        {/* 발행 설정 */}
+        <div class="bg-white rounded-xl shadow-md p-6">
+          <h3 class="text-lg font-bold text-surface-900 mb-4 pb-3 border-b border-surface-200">발행</h3>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-2">상태</label>
+              <select class="w-full bg-surface-50 border border-surface-200 rounded-lg p-2 text-sm text-surface-900 focus:border-primary-500 outline-none">
+                <option value="draft">임시저장</option>
+                <option value="published" selected>발행</option>
+                <option value="scheduled">스케줄</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-2">우선순위</label>
+              <div class="space-y-2">
+                {['critical', 'high', 'normal', 'low'].map((priority) => (
+                  <label class="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="priority"
+                      value={priority}
+                      checked={priority === announcement.priority}
+                    />
+                    <span class="text-sm text-surface-700">
+                      {priority === 'critical' ? '🔴 긴급' :
+                       priority === 'high' ? '🟠 중요' :
+                       priority === 'normal' ? '🔵 일반' :
+                       '⚪ 낮음'}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              form="announcement-form"
+              class="w-full bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+            >
+              업데이트
+            </button>
+            <a href="/admin/announcements" class="block w-full bg-surface-100 hover:bg-surface-200 text-surface-700 font-semibold py-3 px-4 rounded-lg transition-colors text-center">
+              취소
+            </a>
+          </div>
+        </div>
+
+        {/* 카테고리 */}
+        <div class="bg-white rounded-xl shadow-md p-6">
+          <h3 class="text-lg font-bold text-surface-900 mb-4 pb-3 border-b border-surface-200">카테고리</h3>
+          
+          <div class="space-y-2">
+            {['notice', 'update', 'maintenance', 'security', 'other'].map((category) => (
+              <label class="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name="category"
+                  value={category}
+                  checked={category === announcement.category}
+                  required
+                />
+                <span class="text-sm text-surface-700">
+                  {category === 'notice' ? '공지' :
+                   category === 'update' ? '업데이트' :
+                   category === 'maintenance' ? '점검' :
+                   category === 'security' ? '보안' :
+                   '기타'}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</AdminConsoleLayout>
+
+<script>
+  const form = document.getElementById('announcement-form') as HTMLFormElement;
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    alert('공지사항이 업데이트되었습니다!');
+  });
+</script>

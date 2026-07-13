@@ -1,0 +1,186 @@
+---
+// 시스템 통계 페이지
+// 경로: /admin/system
+import AdminConsoleLayout from '@layouts/AdminConsoleLayout.astro';
+
+// 시스템 통계 데이터
+const systemMetrics = {
+  cpuUsage: 45,
+  memoryUsage: 62,
+  diskUsage: 78,
+  uptime: '127 days 14h 32m',
+  uptimePercentage: 99.98,
+  requests: {
+    current: 1234,
+    lastHour: 45678,
+    last24h: 856321,
+  },
+  responseTime: {
+    avg: 125,
+    min: 32,
+    max: 892,
+    p95: 445,
+  },
+  errors: {
+    lastHour: 12,
+    last24h: 287,
+    errorRate: 0.034,
+  },
+};
+
+const chartData = [
+  { label: '00:00', value: 850 },
+  { label: '04:00', value: 720 },
+  { label: '08:00', value: 1200 },
+  { label: '12:00', value: 1580 },
+  { label: '16:00', value: 1890 },
+  { label: '20:00', value: 2100 },
+  { label: '23:59', value: 1534 },
+];
+---
+
+<AdminConsoleLayout>
+  <div class="p-8 space-y-8">
+    <!-- 헤더 -->
+    <div>
+      <h1 class="text-3xl font-bold text-surface-900 mb-2">시스템 통계</h1>
+      <p class="text-surface-600">서버 성능 및 시스템 상태를 모니터링하세요</p>
+    </div>
+
+    {/* 주요 메트릭 */}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* CPU 사용률 */}
+      <div class="bg-white rounded-xl shadow-md p-6">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-surface-600">CPU 사용률</p>
+          <svg class="w-5 h-5 text-info-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9 3H3v6h6V3zm0 8H3v6h6v-6zm8-8h-6v6h6V3zm0 8h-6v6h6v-6zm-4 8h-4v4h4v-4zm8 0h-4v4h4v-4z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-info-600 mb-2">{systemMetrics.cpuUsage}%</p>
+        <div class="w-full bg-surface-200 rounded-full h-2">
+          <div class="bg-info-500 h-2 rounded-full" style={`width: ${systemMetrics.cpuUsage}%`}></div>
+        </div>
+      </div>
+
+      {/* 메모리 사용률 */}
+      <div class="bg-white rounded-xl shadow-md p-6">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-surface-600">메모리 사용률</p>
+          <svg class="w-5 h-5 text-warning-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-warning-600 mb-2">{systemMetrics.memoryUsage}%</p>
+        <div class="w-full bg-surface-200 rounded-full h-2">
+          <div class="bg-warning-500 h-2 rounded-full" style={`width: ${systemMetrics.memoryUsage}%`}></div>
+        </div>
+      </div>
+
+      {/* 디스크 사용률 */}
+      <div class="bg-white rounded-xl shadow-md p-6">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-surface-600">디스크 사용률</p>
+          <svg class="w-5 h-5 text-danger-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-danger-600 mb-2">{systemMetrics.diskUsage}%</p>
+        <div class="w-full bg-surface-200 rounded-full h-2">
+          <div class="bg-danger-500 h-2 rounded-full" style={`width: ${systemMetrics.diskUsage}%`}></div>
+        </div>
+      </div>
+
+      {/* 업타임 */}
+      <div class="bg-white rounded-xl shadow-md p-6">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-surface-600">서버 업타임</p>
+          <svg class="w-5 h-5 text-success-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+          </svg>
+        </div>
+        <p class="text-xl font-bold text-success-600 mb-2">{systemMetrics.uptimePercentage}%</p>
+        <p class="text-xs text-surface-600">{systemMetrics.uptime}</p>
+      </div>
+    </div>
+
+    {/* 요청 통계 및 응답시간 */}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* 요청 통계 */}
+      <div class="bg-white rounded-xl shadow-md p-8">
+        <h2 class="text-xl font-bold text-surface-900 mb-6">요청 통계</h2>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between p-4 bg-surface-50 rounded-lg">
+            <div>
+              <p class="text-sm text-surface-600">현재 요청 (초당)</p>
+              <p class="text-2xl font-bold text-primary-600">{systemMetrics.requests.current}</p>
+            </div>
+            <svg class="w-10 h-10 text-primary-100" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M3 13h2v8H3zm4-8h2v16H7zm4-2h2v18h-2zm4-1h2v19h-2zm4 4h2v15h-2z" />
+            </svg>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-surface-50 rounded-lg">
+            <div>
+              <p class="text-sm text-surface-600">지난 1시간</p>
+              <p class="text-2xl font-bold text-success-600">{systemMetrics.requests.lastHour.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-surface-50 rounded-lg">
+            <div>
+              <p class="text-sm text-surface-600">지난 24시간</p>
+              <p class="text-2xl font-bold text-info-600">{systemMetrics.requests.last24h.toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 응답 시간 */}
+      <div class="bg-white rounded-xl shadow-md p-8">
+        <h2 class="text-xl font-bold text-surface-900 mb-6">응답 시간</h2>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between p-4 bg-surface-50 rounded-lg">
+            <div>
+              <p class="text-sm text-surface-600">평균</p>
+              <p class="text-2xl font-bold text-warning-600">{systemMetrics.responseTime.avg}ms</p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-surface-50 rounded-lg">
+            <div>
+              <p class="text-sm text-surface-600">P95</p>
+              <p class="text-2xl font-bold text-info-600">{systemMetrics.responseTime.p95}ms</p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-surface-50 rounded-lg">
+            <div>
+              <p class="text-sm text-surface-600">최대</p>
+              <p class="text-2xl font-bold text-danger-600">{systemMetrics.responseTime.max}ms</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* 에러 통계 */}
+    <div class="bg-white rounded-xl shadow-md p-8">
+      <h2 class="text-xl font-bold text-surface-900 mb-6">에러 통계</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="border-l-4 border-danger-500 pl-6">
+          <p class="text-sm text-surface-600 mb-1">지난 1시간</p>
+          <p class="text-3xl font-bold text-danger-600">{systemMetrics.errors.lastHour}</p>
+        </div>
+        <div class="border-l-4 border-warning-500 pl-6">
+          <p class="text-sm text-surface-600 mb-1">지난 24시간</p>
+          <p class="text-3xl font-bold text-warning-600">{systemMetrics.errors.last24h}</p>
+        </div>
+        <div class="border-l-4 border-info-500 pl-6">
+          <p class="text-sm text-surface-600 mb-1">에러율</p>
+          <p class="text-3xl font-bold text-info-600">{(systemMetrics.errors.errorRate * 100).toFixed(2)}%</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</AdminConsoleLayout>

@@ -1,0 +1,28 @@
+---
+// platform/src/pages/features.astro
+import BaseLayout from '@layouts/BaseLayout.astro';
+const sections = [
+  { title:'콘텐츠 관리', items:['게시글 관리','페이지 관리','카테고리','태그','메뉴 관리','댓글 시스템','검색','RSS 피드','Block Editor','Markdown 지원','HTML 지원','자동 저장','버전 관리','예약 발행'] },
+  { title:'AI 엔진', items:['AI 글쓰기 (6가지 유형)','AI SEO 분석','AI Schema 생성','AI 썸네일 생성','AI 이어쓰기','AI 다시쓰기','Meta 자동 생성','FAQ 자동 생성','키워드 분석','가독성 분석','내부 링크 추천','10가지 Schema 타입'] },
+  { title:'SEO', items:['SEO Score','Focus Keyword','Meta Analyzer','Title Analyzer','Readability Analyzer','Keyword Density','Meta Description','Canonical URL','Open Graph','Twitter Card','robots.txt','sitemap.xml','리디렉션 관리','구조화 데이터'] },
+  { title:'인프라 & 성능', items:['Cloudflare Workers','Cloudflare D1','Cloudflare KV','Edge SSR','HTML Cache','API Cache','Edge Cache','Browser Cache','Image Optimization','HTML Minify','Streaming SSR','Lighthouse 95+'] },
+];
+---
+<BaseLayout title="기능 - CloudPress" description="CloudPress의 모든 기능을 살펴보세요.">
+  <section class="section-padding">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <h1 class="text-4xl font-bold text-white mb-4 text-center">모든 기능</h1>
+      <p class="text-lg text-surface-400 text-center mb-16">플러그인 없이 제공되는 코어 기능 목록입니다.</p>
+      <div class="space-y-12">
+        {sections.map((s) => (
+          <div class="glass rounded-xl p-8">
+            <h2 class="text-2xl font-bold text-white mb-4">{s.title}</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">{s.items.map((item) => (
+              <div class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-brand-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>{item}</div>
+            ))}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

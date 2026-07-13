@@ -1,0 +1,55 @@
+---
+// platform/src/pages/admin/users/index.astro
+import AdminLayout from '@layouts/AdminLayout.astro';
+import { parseSessionCookie } from '@lib/session';
+import { isAdminSession } from '@lib/admin';
+import { apiClient } from '@lib/api-client';
+
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+if (!isAdminSession(session)) return Astro.redirect('/dashboard');
+Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
+
+interface AdminUser { id: string; email: string; username: string; avatar_url: string | null; status: string; created_at: number; updated_at: number; }
+const usersResult = await apiClient.get<AdminUser[]>('/api/admin/users?limit=100', Astro.request.headers.get('cookie'));
+const users = usersResult.success ? usersResult.data : [];
+
+const statusStyles: Record<string, string> = { active: 'bg-green-500/10 text-green-400', suspended: 'bg-red-500/10 text-red-400' };
+---
+<AdminLayout title="사용자 관리" activeNav="users">
+  <div class="mb-8 flex items-center justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-white mb-2">사용자 관리</h1>
+      <p class="text-surface-400">전체 {users.length}명의 사용자가 등록되어 있습니다.</p>
+    </div>
+  </div>
+
+  <div class="glass rounded-xl overflow-hidden overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-surface-800">
+        <tr>
+          <th class="text-left p-4 text-surface-400">사용자</th>
+          <th class="text-left p-4 text-surface-400">이메일</th>
+          <th class="text-left p-4 text-surface-400">상태</th>
+          <th class="text-left p-4 text-surface-400">가입일</th>
+        </tr>
+      </thead>
+      <tbody>
+        {users.map((u) => (
+          <tr class="border-t border-surface-800">
+            <td class="p-4">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-500 text-xs font-semibold">{u.username?.charAt(0).toUpperCase() || 'U'}</div>
+                <span class="font-medium text-white">{u.username}</span>
+              </div>
+            </td>
+            <td class="p-4 text-surface-400">{u.email}</td>
+            <td class="p-4"><span class:list={['px-2 py-1 text-xs font-medium rounded-full', statusStyles[u.status] || 'bg-surface-700 text-surface-300']}>{u.status}</span></td>
+            <td class="p-4 text-surface-400">{new Date(u.created_at * 1000).toLocaleDateString('ko-KR')}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    {users.length === 0 && <div class="p-10 text-center text-surface-500">등록된 사용자가 없습니다.</div>}
+  </div>
+</AdminLayout>

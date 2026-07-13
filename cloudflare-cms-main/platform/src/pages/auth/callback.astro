@@ -1,0 +1,19 @@
+---
+// platform/src/pages/auth/callback.astro
+import { exchangeCodeForTokens, getCloudflareUser } from '@lib/cloudflare-oauth';
+import { createSessionCookie } from '@lib/session';
+const code = Astro.url.searchParams.get('code');
+if (!code) return Astro.redirect('/?error=no_code');
+try {
+  const tokens = await exchangeCodeForTokens(code);
+  const cfUser = await getCloudflareUser(tokens.access_token);
+  const PLATFORM_API = import.meta.env.PLATFORM_API_URL || 'http://localhost:8787';
+  const response = await fetch(`${PLATFORM_API}/api/auth/callback`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ cfAccountId:cfUser.id, email:cfUser.email, username:cfUser.name||cfUser.email.split('@')[0], avatarUrl:cfUser.avatar_url, oauthToken:tokens.access_token, refreshToken:tokens.refresh_token||null, expiresAt:tokens.expires_in ? Math.floor(Date.now()/1000)+tokens.expires_in : null }) });
+  const result = await response.json();
+  if (result.success && result.data) {
+    const u = result.data;
+    return new Response(null, { status:302, headers:{ 'Location':'/dashboard', 'Set-Cookie': createSessionCookie({ userId:u.id, email:u.email, username:u.username, avatarUrl:u.avatar_url, cfAccountId:cfUser.id, cfToken:tokens.access_token }) } });
+  }
+  return Astro.redirect('/?error=auth_failed');
+} catch { return Astro.redirect('/?error=auth_failed'); }
+---

@@ -1,0 +1,17 @@
+# workers/platform-api/wrangler.toml
+name = "cloudpress-platform-api"
+main = "src/index.ts" # JS Glue를 엔트리포인트로 사용
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"] # Wasm 지원 활성화 (Go/Rust 로드를 위해 필수)
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cloudpress_platform"
+database_id = "8bf6671a-88dc-4e7c-84ae-8e55331216b8"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "e4858ee03ee4456989ca1cfcd3746a93"
+
+[vars]
+ENVIRONMENT = "production"

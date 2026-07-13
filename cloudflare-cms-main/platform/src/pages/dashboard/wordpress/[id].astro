@@ -1,0 +1,404 @@
+---
+// platform/src/pages/dashboard/wordpress/[id].astro
+import DashboardLayout from '@layouts/DashboardLayout.astro';
+import { parseSessionCookie } from '@lib/session';
+import { apiClient } from '@lib/api-client';
+
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
+
+const { id } = Astro.params;
+
+// Mock WordPress site details (would come from database)
+const wpSite = {
+  id: id,
+  siteName: '예시 WordPress 사이트',
+  domain: 'example.com',
+  phpVersion: '8.3',
+  wasmVersion: '0.19.0',
+  dbType: 'sqlite',
+  theme: 'Twenty Twenty-Four',
+  dbSizeGB: 1.2,
+  cacheHitRate: 87.3,
+  adminUser: {
+    login: 'admin',
+    email: 'admin@example.com',
+    displayName: 'Administrator',
+  },
+  cacheSettings: {
+    enabled: true,
+    wpRocketEnabled: true,
+    cloudflarePageRuleEnabled: true,
+    cacheTTL: 3600,
+    minifyHTML: true,
+    minifyCSS: true,
+    minifyJS: true,
+    lazyLoadImages: true,
+    criticalCSSEnabled: true,
+  },
+};
+---
+<DashboardLayout title={`${wpSite.siteName} - WordPress 상세`} activeNav="hosting">
+  <div class="mb-8">
+    <a href={`/dashboard/hosting/hosting-001`} class="text-sm text-surface-500 hover:text-surface-300 mb-3 inline-flex items-center gap-1">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="15 18 9 12 15 6"/></svg>
+      호스팅 상세
+    </a>
+    <h1 class="text-3xl font-bold text-white">{wpSite.siteName}</h1>
+    <p class="text-surface-400 mt-1">{wpSite.domain}</p>
+  </div>
+
+  <!-- WordPress 시스템 정보 -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div class="glass rounded-2xl p-6">
+      <p class="text-xs text-surface-500 font-semibold mb-2">PHP 버전</p>
+      <p class="text-2xl font-bold text-white">{wpSite.phpVersion}</p>
+      <p class="text-xs text-surface-400 mt-1">php-wasm</p>
+    </div>
+    <div class="glass rounded-2xl p-6">
+      <p class="text-xs text-surface-500 font-semibold mb-2">DB 크기</p>
+      <p class="text-2xl font-bold text-white">{wpSite.dbSizeGB}GB</p>
+      <p class="text-xs text-surface-400 mt-1">{wpSite.dbType}</p>
+    </div>
+    <div class="glass rounded-2xl p-6">
+      <p class="text-xs text-surface-500 font-semibold mb-2">캐시 히트율</p>
+      <p class="text-2xl font-bold text-white">{wpSite.cacheHitRate}%</p>
+      <p class="text-xs text-surface-400 mt-1">WP-Rocket</p>
+    </div>
+    <div class="glass rounded-2xl p-6">
+      <p class="text-xs text-surface-500 font-semibold mb-2">테마</p>
+      <p class="text-xl font-bold text-white truncate">{wpSite.theme}</p>
+      <p class="text-xs text-surface-400 mt-1">활성</p>
+    </div>
+  </div>
+
+  <!-- 빠른 접근 버튼 -->
+  <div class="flex gap-3 mb-8">
+    <a href={`https://${wpSite.domain}/wp-admin/`} target="_blank" rel="noreferrer" class="btn-primary text-sm">WordPress 관리자 대시보드</a>
+    <a href={`https://${wpSite.domain}/`} target="_blank" rel="noreferrer" class="btn-secondary text-sm">사이트 방문</a>
+    <button class="btn-secondary text-sm" id="cache-purge-btn">캐시 비우기</button>
+  </div>
+
+  <!-- 관리자 정보 -->
+  <section class="glass rounded-2xl p-6 mb-6">
+    <h2 class="text-xl font-semibold text-white mb-4">관리자 정보</h2>
+    <form id="admin-form" class="space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-surface-300 mb-2">로그인 ID</label>
+          <input type="text" value={wpSite.adminUser.login} disabled class="input-field bg-surface-800/50" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-surface-300 mb-2">이메일</label>
+          <input type="email" name="email" value={wpSite.adminUser.email} class="input-field" required />
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-surface-300 mb-2">표시 이름</label>
+        <input type="text" name="displayName" value={wpSite.adminUser.displayName} class="input-field" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-surface-300 mb-2">새 비밀번호 (변경 시만 입력)</label>
+        <input type="password" name="password" class="input-field" placeholder="최소 12자 권장" />
+      </div>
+      <button type="submit" class="btn-primary">정보 저장</button>
+      <div id="admin-message" class="hidden p-3 rounded-lg text-sm"></div>
+    </form>
+  </section>
+
+  <!-- 캐싱 설정 -->
+  <section class="glass rounded-2xl p-6 mb-6">
+    <h2 class="text-xl font-semibold text-white mb-4">캐싱 설정</h2>
+    <form id="cache-form" class="space-y-4">
+      <div class="space-y-3">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input 
+            type="checkbox" 
+            name="wpRocketEnabled" 
+            checked={wpSite.cacheSettings.wpRocketEnabled}
+            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+          />
+          <span class="text-sm font-medium text-surface-300">WP-Rocket 캐싱 활성화</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input 
+            type="checkbox" 
+            name="cloudflarePageRuleEnabled" 
+            checked={wpSite.cacheSettings.cloudflarePageRuleEnabled}
+            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+          />
+          <span class="text-sm font-medium text-surface-300">Cloudflare 페이지 규칙 활성화</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input 
+            type="checkbox" 
+            name="minifyHTML" 
+            checked={wpSite.cacheSettings.minifyHTML}
+            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+          />
+          <span class="text-sm font-medium text-surface-300">HTML 최소화</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input 
+            type="checkbox" 
+            name="minifyCSS" 
+            checked={wpSite.cacheSettings.minifyCSS}
+            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+          />
+          <span class="text-sm font-medium text-surface-300">CSS 최소화</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input 
+            type="checkbox" 
+            name="minifyJS" 
+            checked={wpSite.cacheSettings.minifyJS}
+            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+          />
+          <span class="text-sm font-medium text-surface-300">JavaScript 최소화</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input 
+            type="checkbox" 
+            name="lazyLoadImages" 
+            checked={wpSite.cacheSettings.lazyLoadImages}
+            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+          />
+          <span class="text-sm font-medium text-surface-300">이미지 지연 로딩</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input 
+            type="checkbox" 
+            name="criticalCSSEnabled" 
+            checked={wpSite.cacheSettings.criticalCSSEnabled}
+            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+          />
+          <span class="text-sm font-medium text-surface-300">중요 CSS 최적화</span>
+        </label>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-surface-300 mb-2">캐시 TTL (초)</label>
+        <input 
+          type="number" 
+          name="cacheTTL" 
+          value={wpSite.cacheSettings.cacheTTL} 
+          min="300" 
+          max="86400" 
+          class="input-field"
+        />
+        <p class="text-xs text-surface-500 mt-1">300초(5분) ~ 86400초(24시간)</p>
+      </div>
+      <button type="submit" class="btn-primary">캐싱 설정 저장</button>
+      <div id="cache-message" class="hidden p-3 rounded-lg text-sm"></div>
+    </form>
+  </section>
+
+  <!-- 마이그레이션 파일 업로드 -->
+  <section class="glass rounded-2xl p-6 mb-6">
+    <h2 class="text-xl font-semibold text-white mb-4">마이그레이션 & 복원</h2>
+    <p class="text-sm text-surface-400 mb-6">다른 호스팅에서 WordPress 백업 또는 마이그레이션 파일을 업로드하여 이 WordPress 인스턴스로 데이터를 가져옵니다.</p>
+    
+    <div id="upload-area" class="border-2 border-dashed border-surface-700 rounded-xl p-8 text-center cursor-pointer hover:border-brand-500 transition-colors">
+      <svg class="w-12 h-12 text-surface-500 mx-auto mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <p class="text-sm font-medium text-surface-300 mb-1">클릭하여 파일 선택 또는 드래그 앤 드롭</p>
+      <p class="text-xs text-surface-500">지원 형식: .zip, .tar.gz, .sql, .json</p>
+      <input type="file" id="migration-file" class="hidden" accept=".zip,.tar.gz,.sql,.json" />
+    </div>
+
+    <div id="upload-progress" class="hidden mt-4">
+      <p class="text-sm text-surface-300 mb-2">업로드 중...</p>
+      <div class="w-full bg-surface-800 rounded-full h-2">
+        <div id="progress-bar" class="bg-brand-500 h-2 rounded-full" style="width: 0%"></div>
+      </div>
+      <p id="progress-text" class="text-xs text-surface-500 mt-1">0%</p>
+    </div>
+
+    <div id="upload-message" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+
+    <div id="migrations-list" class="mt-6">
+      <h3 class="text-sm font-semibold text-surface-300 mb-3">최근 마이그레이션</h3>
+      <div class="space-y-2">
+        <p class="text-sm text-surface-500">마이그레이션 이력이 없습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 위험 구역 -->
+  <section class="glass rounded-2xl p-6 border border-red-500/20">
+    <h2 class="text-lg font-semibold text-red-400 mb-2">위험 구역</h2>
+    <p class="text-sm text-surface-400 mb-4">이 WordPress 인스턴스를 삭제하면 모든 데이터가 영구적으로 제거됩니다. 이 작업은 되돌릴 수 없습니다.</p>
+    <button id="delete-wp-btn" class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-500/10 text-red-400 font-medium rounded-lg border border-red-500/30 hover:bg-red-500/20 transition-colors">
+      WordPress 인스턴스 삭제
+    </button>
+  </section>
+</DashboardLayout>
+
+<script>
+  // Admin form submission
+  const adminForm = document.getElementById('admin-form') as HTMLFormElement | null;
+  const adminMessage = document.getElementById('admin-message') as HTMLDivElement | null;
+  
+  adminForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    adminMessage?.classList.add('hidden');
+    
+    const formData = new FormData(adminForm);
+    try {
+      const response = await fetch(`/api/wordpress/${id}/admin`, {
+        method: 'POST',
+        body: JSON.stringify(Object.fromEntries(formData)),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (response.ok) {
+        adminMessage?.classList.remove('hidden');
+        adminMessage!.className = 'p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-sm text-green-400';
+        adminMessage!.textContent = '관리자 정보가 저장되었습니다.';
+      } else {
+        throw new Error('저장 실패');
+      }
+    } catch (error) {
+      adminMessage?.classList.remove('hidden');
+      adminMessage!.className = 'p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400';
+      adminMessage!.textContent = '오류 발생: ' + (error instanceof Error ? error.message : '알 수 없는 오류');
+    }
+  });
+
+  // Cache form submission
+  const cacheForm = document.getElementById('cache-form') as HTMLFormElement | null;
+  const cacheMessage = document.getElementById('cache-message') as HTMLDivElement | null;
+  
+  cacheForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    cacheMessage?.classList.add('hidden');
+    
+    const formData = new FormData(cacheForm);
+    const settings: Record<string, any> = {};
+    
+    formData.forEach((value, key) => {
+      if (key === 'cacheTTL') {
+        settings[key] = parseInt(value as string);
+      } else {
+        settings[key] = (formData.getAll(key).length > 0);
+      }
+    });
+    
+    try {
+      const response = await fetch(`/api/wordpress/${id}/cache-settings`, {
+        method: 'POST',
+        body: JSON.stringify(settings),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (response.ok) {
+        cacheMessage?.classList.remove('hidden');
+        cacheMessage!.className = 'p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-sm text-green-400';
+        cacheMessage!.textContent = '캐싱 설정이 저장되었습니다.';
+      }
+    } catch (error) {
+      cacheMessage?.classList.remove('hidden');
+      cacheMessage!.className = 'p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400';
+      cacheMessage!.textContent = '오류 발생';
+    }
+  });
+
+  // File upload
+  const uploadArea = document.getElementById('upload-area') as HTMLDivElement | null;
+  const migrationFile = document.getElementById('migration-file') as HTMLInputElement | null;
+  
+  uploadArea?.addEventListener('click', () => migrationFile?.click());
+  
+  uploadArea?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('border-brand-500');
+  });
+  
+  uploadArea?.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('border-brand-500');
+  });
+  
+  uploadArea?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('border-brand-500');
+    const files = (e as DragEvent).dataTransfer?.files;
+    if (files) handleFileUpload(files[0]);
+  });
+  
+  migrationFile?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) handleFileUpload(file);
+  });
+  
+  async function handleFileUpload(file: File) {
+    const uploadProgress = document.getElementById('upload-progress') as HTMLDivElement | null;
+    const progressBar = document.getElementById('progress-bar') as HTMLDivElement | null;
+    const progressText = document.getElementById('progress-text') as HTMLDivElement | null;
+    const uploadMessage = document.getElementById('upload-message') as HTMLDivElement | null;
+    
+    uploadProgress?.classList.remove('hidden');
+    uploadMessage?.classList.add('hidden');
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = (e.loaded / e.total) * 100;
+          if (progressBar) progressBar.style.width = percentComplete + '%';
+          if (progressText) progressText.textContent = Math.round(percentComplete) + '%';
+        }
+      });
+      
+      xhr.addEventListener('load', () => {
+        uploadProgress?.classList.add('hidden');
+        uploadMessage?.classList.remove('hidden');
+        
+        if (xhr.status === 200) {
+          uploadMessage!.className = 'p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-sm text-green-400';
+          uploadMessage!.textContent = '마이그레이션 파일이 업로드되었습니다. 처리 중입니다.';
+        } else {
+          uploadMessage!.className = 'p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400';
+          uploadMessage!.textContent = '업로드 실패';
+        }
+      });
+      
+      xhr.open('POST', `/api/wordpress/${id}/migrate`);
+      xhr.send(formData);
+    } catch (error) {
+      uploadProgress?.classList.add('hidden');
+      uploadMessage?.classList.remove('hidden');
+      uploadMessage!.className = 'p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400';
+      uploadMessage!.textContent = '오류 발생';
+    }
+  }
+  
+  // Cache purge button
+  document.getElementById('cache-purge-btn')?.addEventListener('click', async () => {
+    try {
+      await fetch(`/api/wordpress/${id}/purge-cache`, { method: 'POST' });
+      alert('캐시가 비워졌습니다.');
+    } catch (error) {
+      alert('캐시 비우기 실패');
+    }
+  });
+  
+  // Delete WordPress instance
+  document.getElementById('delete-wp-btn')?.addEventListener('click', async () => {
+    if (!confirm('정말로 이 WordPress 인스턴스를 삭제하시겠습니까?')) return;
+    
+    try {
+      const response = await fetch(`/api/wordpress/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        window.location.href = '/dashboard/hosting';
+      }
+    } catch (error) {
+      alert('삭제 실패');
+    }
+  });
+</script>

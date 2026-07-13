@@ -1,0 +1,181 @@
+---
+// 공지사항 관리 페이지
+// 경로: /admin/announcements
+import AdminConsoleLayout from '@layouts/AdminConsoleLayout.astro';
+
+// 데모 공지사항 데이터
+const announcements = [
+  {
+    id: 1,
+    title: '🎉 Cloud Press 2.0 출시',
+    status: 'published',
+    priority: 'high',
+    category: 'update',
+    author: 'admin@example.com',
+    views: 1234,
+    createdAt: '2026-07-10',
+  },
+  {
+    id: 2,
+    title: '🚨 서버 점검 안내',
+    status: 'published',
+    priority: 'critical',
+    category: 'maintenance',
+    author: 'admin@example.com',
+    views: 892,
+    createdAt: '2026-07-08',
+  },
+  {
+    id: 3,
+    title: '🔒 보안 패치 업데이트',
+    status: 'published',
+    priority: 'high',
+    category: 'security',
+    author: 'admin@example.com',
+    views: 567,
+    createdAt: '2026-07-12',
+  },
+  {
+    id: 4,
+    title: '새로운 기능 미리보기',
+    status: 'draft',
+    priority: 'normal',
+    category: 'update',
+    author: 'admin@example.com',
+    views: 0,
+    createdAt: '2026-07-13',
+  },
+];
+
+const getStatusBadge = (status: string) => {
+  if (status === 'published') return 'bg-success-100 text-success-700';
+  if (status === 'draft') return 'bg-surface-100 text-surface-700';
+  return 'bg-danger-100 text-danger-700';
+};
+
+const getPriorityBadge = (priority: string) => {
+  if (priority === 'critical') return 'bg-danger-100 text-danger-700';
+  if (priority === 'high') return 'bg-warning-100 text-warning-700';
+  if (priority === 'normal') return 'bg-info-100 text-info-700';
+  return 'bg-surface-100 text-surface-700';
+};
+
+const getCategoryBadge = (category: string) => {
+  if (category === 'update') return 'bg-primary-100 text-primary-700';
+  if (category === 'maintenance') return 'bg-warning-100 text-warning-700';
+  if (category === 'security') return 'bg-danger-100 text-danger-700';
+  return 'bg-surface-100 text-surface-700';
+};
+---
+
+<AdminConsoleLayout>
+  <div class="p-8 space-y-8">
+    <!-- 헤더 -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-surface-900 mb-2">공지사항 관리</h1>
+        <p class="text-surface-600">모든 공지사항을 관리하세요</p>
+      </div>
+      <a href="/admin/announcements/create" class="flex items-center space-x-2 bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+        </svg>
+        <span>새 공지사항</span>
+      </a>
+    </div>
+
+    {/* 필터 바 */}
+    <div class="bg-white rounded-lg shadow-md p-4 flex items-center space-x-4">
+      <select class="bg-surface-50 border border-surface-200 rounded-lg p-2 text-sm text-surface-900 focus:border-primary-500 outline-none">
+        <option>모든 상태</option>
+        <option>발행됨</option>
+        <option>임시저장</option>
+        <option>보관됨</option>
+      </select>
+      <select class="bg-surface-50 border border-surface-200 rounded-lg p-2 text-sm text-surface-900 focus:border-primary-500 outline-none">
+        <option>모든 카테고리</option>
+        <option>공지</option>
+        <option>업데이트</option>
+        <option>점검</option>
+        <option>보안</option>
+      </select>
+      <input
+        type="search"
+        placeholder="검색..."
+        class="flex-1 bg-surface-50 border border-surface-200 rounded-lg p-2 text-sm text-surface-900 placeholder-surface-400 focus:border-primary-500 outline-none"
+      />
+    </div>
+
+    {/* 공지사항 테이블 */}
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="bg-surface-50 border-b border-surface-200">
+              <th class="px-6 py-4 text-left text-sm font-semibold text-surface-700">제목</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-surface-700">카테고리</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-surface-700">우선순위</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-surface-700">상태</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-surface-700">조회</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-surface-700">작성일</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-surface-700">작업</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-surface-200">
+            {announcements.map((announcement) => (
+              <tr class="hover:bg-surface-50 transition-colors">
+                <td class="px-6 py-4">
+                  <p class="font-semibold text-surface-900">{announcement.title}</p>
+                  <p class="text-xs text-surface-500">by {announcement.author}</p>
+                </td>
+                <td class="px-6 py-4">
+                  <span class={`px-3 py-1 rounded-full text-xs font-semibold ${getCategoryBadge(announcement.category)}`}>
+                    {announcement.category === 'notice' ? '공지' : 
+                     announcement.category === 'update' ? '업데이트' :
+                     announcement.category === 'maintenance' ? '점검' :
+                     announcement.category === 'security' ? '보안' : '기타'}
+                  </span>
+                </td>
+                <td class="px-6 py-4">
+                  <span class={`px-3 py-1 rounded-full text-xs font-semibold ${getPriorityBadge(announcement.priority)}`}>
+                    {announcement.priority === 'critical' ? '긴급' :
+                     announcement.priority === 'high' ? '중요' :
+                     announcement.priority === 'normal' ? '일반' : '낮음'}
+                  </span>
+                </td>
+                <td class="px-6 py-4">
+                  <span class={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(announcement.status)}`}>
+                    {announcement.status === 'published' ? '발행됨' : 
+                     announcement.status === 'draft' ? '임시저장' : '보관됨'}
+                  </span>
+                </td>
+                <td class="px-6 py-4 text-sm text-surface-700">{announcement.views.toLocaleString()}</td>
+                <td class="px-6 py-4 text-sm text-surface-700">{announcement.createdAt}</td>
+                <td class="px-6 py-4">
+                  <div class="flex items-center space-x-3">
+                    <a href={`/admin/announcements/${announcement.id}/edit`} class="text-primary-600 hover:text-primary-700 font-semibold text-sm">
+                      편집
+                    </a>
+                    <button class="text-danger-600 hover:text-danger-700 font-semibold text-sm">
+                      삭제
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {/* 페이지네이션 */}
+    <div class="flex items-center justify-between">
+      <p class="text-sm text-surface-600">총 {announcements.length}개 공지사항</p>
+      <div class="flex items-center space-x-2">
+        <button class="px-3 py-2 border border-surface-200 rounded-lg text-surface-700 hover:bg-surface-50 transition-colors">이전</button>
+        <button class="px-3 py-2 bg-primary-500 text-white rounded-lg">1</button>
+        <button class="px-3 py-2 border border-surface-200 rounded-lg text-surface-700 hover:bg-surface-50 transition-colors">다음</button>
+      </div>
+    </div>
+  </div>
+</AdminConsoleLayout>

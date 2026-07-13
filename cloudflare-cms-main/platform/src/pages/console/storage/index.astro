@@ -1,0 +1,171 @@
+---
+// 스토리지 사용량 페이지
+// 경로: /console/storage
+import ConsoleLayout from '@layouts/ConsoleLayout.astro';
+
+// 데모 스토리지 데이터
+const storageData = {
+  total: 100,
+  used: 45.2,
+  database: 12.5,
+  media: 28.7,
+  cache: 4.0,
+};
+
+const hostingStorage = [
+  {
+    id: 1,
+    name: '블로그 호스팅',
+    domain: 'blog.example.com',
+    used: 12.5,
+    percentage: 12.5,
+  },
+  {
+    id: 2,
+    name: '포트폴리오 호스팅',
+    domain: 'portfolio.example.com',
+    used: 8.3,
+    percentage: 8.3,
+  },
+  {
+    id: 3,
+    name: '회사 웹사이트',
+    domain: 'company.example.com',
+    used: 25.8,
+    percentage: 25.8,
+  },
+  {
+    id: 4,
+    name: 'E-커머스 호스팅',
+    domain: 'shop.example.com',
+    used: 45.2,
+    percentage: 45.2,
+  },
+];
+
+const usagePercentage = (storageData.used / storageData.total) * 100;
+const databasePercentage = (storageData.database / storageData.total) * 100;
+const mediaPercentage = (storageData.media / storageData.total) * 100;
+const cachePercentage = (storageData.cache / storageData.total) * 100;
+---
+
+<ConsoleLayout>
+  <div class="p-8 space-y-8">
+    <!-- 헤더 -->
+    <div>
+      <h1 class="text-3xl font-bold text-surface-900 mb-2">스토리지 관리</h1>
+      <p class="text-surface-600">전체 스토리지 사용량을 확인하고 최적화하세요</p>
+    </div>
+
+    <!-- 전체 스토리지 개요 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* 전체 사용량 */}
+      <div class="md:col-span-2 bg-white rounded-xl shadow-md p-8">
+        <h2 class="text-lg font-bold text-surface-900 mb-6">전체 스토리지</h2>
+        
+        {/* 메인 프로그레스 바 */}
+        <div class="mb-6">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-semibold text-surface-700">사용 중인 용량</p>
+            <p class="text-2xl font-bold text-primary-600">{storageData.used.toFixed(1)} <span class="text-lg text-surface-600">/ {storageData.total} GB</span></p>
+          </div>
+          <div class="w-full bg-surface-200 rounded-full h-4">
+            <div class="bg-gradient-to-r from-primary-400 to-primary-600 h-4 rounded-full transition-all" style={`width: ${usagePercentage}%`}></div>
+          </div>
+          <p class="text-xs text-surface-500 mt-2">{usagePercentage.toFixed(1)}% 사용 중 • {(storageData.total - storageData.used).toFixed(1)} GB 남음</p>
+        </div>
+
+        {/* 용도별 분석 */}
+        <div class="grid grid-cols-3 gap-4">
+          {/* 데이터베이스 */}
+          <div class="bg-surface-50 rounded-lg p-4">
+            <p class="text-xs text-surface-600 font-semibold mb-2">데이터베이스</p>
+            <p class="text-2xl font-bold text-info-600 mb-2">{storageData.database.toFixed(1)} GB</p>
+            <div class="w-full bg-surface-200 rounded-full h-2">
+              <div class="bg-info-500 h-2 rounded-full" style={`width: ${databasePercentage}%`}></div>
+            </div>
+            <p class="text-xs text-surface-500 mt-2">{databasePercentage.toFixed(1)}% 사용</p>
+          </div>
+
+          {/* 미디어 파일 */}
+          <div class="bg-surface-50 rounded-lg p-4">
+            <p class="text-xs text-surface-600 font-semibold mb-2">미디어 파일</p>
+            <p class="text-2xl font-bold text-success-600 mb-2">{storageData.media.toFixed(1)} GB</p>
+            <div class="w-full bg-surface-200 rounded-full h-2">
+              <div class="bg-success-500 h-2 rounded-full" style={`width: ${mediaPercentage}%`}></div>
+            </div>
+            <p class="text-xs text-surface-500 mt-2">{mediaPercentage.toFixed(1)}% 사용</p>
+          </div>
+
+          {/* 캐시 */}
+          <div class="bg-surface-50 rounded-lg p-4">
+            <p class="text-xs text-surface-600 font-semibold mb-2">캐시</p>
+            <p class="text-2xl font-bold text-warning-600 mb-2">{storageData.cache.toFixed(1)} GB</p>
+            <div class="w-full bg-surface-200 rounded-full h-2">
+              <div class="bg-warning-500 h-2 rounded-full" style={`width: ${cachePercentage}%`}></div>
+            </div>
+            <p class="text-xs text-surface-500 mt-2">{cachePercentage.toFixed(1)}% 사용</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 업그레이드 카드 */}
+      <div class="bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl shadow-md p-8 text-white flex flex-col justify-between">
+        <div>
+          <h3 class="text-lg font-bold mb-3">스토리지 더 필요하신가요?</h3>
+          <p class="text-primary-100 text-sm mb-4">프리미엄 플랜으로 업그레이드하여 더 많은 스토리지를 사용하세요.</p>
+        </div>
+        <button class="bg-white hover:bg-primary-50 text-primary-600 font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
+          플랜 업그레이드
+        </button>
+      </div>
+    </div>
+
+    {/* 호스팅별 스토리지 사용량 */}
+    <div class="bg-white rounded-xl shadow-md p-8">
+      <h2 class="text-xl font-bold text-surface-900 mb-6">호스팅별 스토리지 사용량</h2>
+      
+      <div class="space-y-4">
+        {hostingStorage.map((hosting) => (
+          <div class="border border-surface-200 rounded-lg p-4 hover:bg-surface-50 transition-colors">
+            <div class="flex items-start justify-between mb-3">
+              <div>
+                <h4 class="font-semibold text-surface-900">{hosting.name}</h4>
+                <p class="text-sm text-surface-600">{hosting.domain}</p>
+              </div>
+              <span class="text-lg font-bold text-primary-600">{hosting.used.toFixed(1)} GB</span>
+            </div>
+            <div class="w-full bg-surface-200 rounded-full h-3">
+              <div class="bg-gradient-to-r from-primary-400 to-primary-600 h-3 rounded-full" style={`width: ${hosting.percentage}%`}></div>
+            </div>
+            <p class="text-xs text-surface-500 mt-2">{hosting.percentage.toFixed(1)}% 사용 중</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 최적화 제안 */}
+      <div class="mt-8 pt-8 border-t border-surface-200">
+        <h3 class="font-semibold text-surface-900 mb-4 flex items-center space-x-2">
+          <svg class="w-5 h-5 text-warning-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+          </svg>
+          <span>최적화 제안</span>
+        </h3>
+        <ul class="space-y-2 text-sm text-surface-700">
+          <li class="flex items-start space-x-3">
+            <span class="text-success-500 font-bold">✓</span>
+            <span>e-커머스 호스팅의 이미지를 최적화하면 스토리지를 5GB 절약할 수 있습니다.</span>
+          </li>
+          <li class="flex items-start space-x-3">
+            <span class="text-warning-500 font-bold">!</span>
+            <span>3개월 이상 사용하지 않은 미디어 파일: 2.3GB</span>
+          </li>
+          <li class="flex items-start space-x-3">
+            <span class="text-info-500 font-bold">i</span>
+            <span>캐시를 비우면 4GB를 즉시 확보할 수 있습니다.</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</ConsoleLayout>

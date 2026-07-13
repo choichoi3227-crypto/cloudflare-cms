@@ -1,0 +1,31 @@
+{
+  "name": "cloudpress",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "platform",
+    "workers/platform-api",
+    "workers/ai-gateway",
+    "workers/cms-site",
+    "shared"
+  ],
+  "scripts": {
+    "dev:platform": "turbo run dev --filter=platform",
+    "dev:api": "turbo run dev --filter=platform-api",
+    "dev:ai": "turbo run dev --filter=ai-gateway",
+    "build:all": "turbo run build",
+    "deploy:platform": "turbo run deploy --filter=platform",
+    "deploy:api": "turbo run deploy --filter=platform-api",
+    "deploy:ai": "turbo run deploy --filter=ai-gateway",
+    "db:init:platform": "wrangler d1 execute cloudpress_platform --file=database/platform-schema.sql",
+    "db:init:site": "wrangler d1 execute cp_site_template --file=database/site-schema.sql",
+    "db:seed:platform": "wrangler d1 execute cloudpress_platform --file=database/seeds/platform-seeds.sql",
+    "db:seed:site": "wrangler d1 execute cp_site_template --file=database/seeds/site-seeds.sql"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.99.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

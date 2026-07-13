@@ -1,0 +1,84 @@
+---
+// PublicLayout.astro - 공개 페이지 레이아웃 (밝은 테마)
+import BaseLayout from '@layouts/BaseLayout.astro';
+---
+
+<BaseLayout>
+  <div class="flex flex-col min-h-screen bg-surface-50">
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-surface-200 shadow-light-md">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white font-bold">
+              W
+            </div>
+            <span class="text-xl font-bold text-surface-900">WordPress</span>
+          </div>
+          <div class="flex items-center space-x-4">
+            <a href="/announcements" class="text-surface-700 hover:text-primary-500 transition-colors">공지사항</a>
+            <a href="/docs" class="text-surface-700 hover:text-primary-500 transition-colors">가이드</a>
+            <a href="https://console.{domain}" class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
+              콘솔 로그인
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1">
+      <slot />
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-surface-200 mt-16">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div class="grid grid-cols-4 gap-8 mb-8">
+          <div>
+            <h3 class="font-bold text-surface-900 mb-4">제품</h3>
+            <ul class="space-y-2 text-sm text-surface-600">
+              <li><a href="#" class="hover:text-primary-500">호스팅</a></li>
+              <li><a href="#" class="hover:text-primary-500">도메인</a></li>
+              <li><a href="#" class="hover:text-primary-500">이메일</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="font-bold text-surface-900 mb-4">리소스</h3>
+            <ul class="space-y-2 text-sm text-surface-600">
+              <li><a href="#" class="hover:text-primary-500">블로그</a></li>
+              <li><a href="#" class="hover:text-primary-500">튜토리얼</a></li>
+              <li><a href="#" class="hover:text-primary-500">API 문서</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="font-bold text-surface-900 mb-4">회사</h3>
+            <ul class="space-y-2 text-sm text-surface-600">
+              <li><a href="#" class="hover:text-primary-500">소개</a></li>
+              <li><a href="#" class="hover:text-primary-500">채용</a></li>
+              <li><a href="#" class="hover:text-primary-500">연락처</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="font-bold text-surface-900 mb-4">법률</h3>
+            <ul class="space-y-2 text-sm text-surface-600">
+              <li><a href="#" class="hover:text-primary-500">이용약관</a></li>
+              <li><a href="#" class="hover:text-primary-500">개인정보</a></li>
+              <li><a href="#" class="hover:text-primary-500">쿠키 정책</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="border-t border-surface-200 pt-8 text-center text-sm text-surface-600">
+          <p>&copy; 2026 WordPress Hosting. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+  </div>
+</BaseLayout>
+
+<style>
+  /* Smooth transitions */
+  a {
+    transition: color 0.3s ease;
+  }
+</style>

@@ -1,0 +1,52 @@
+---
+// platform/src/pages/admin/index.astro
+import AdminLayout from '@layouts/AdminLayout.astro';
+import { parseSessionCookie } from '@lib/session';
+import { isAdminSession } from '@lib/admin';
+import { apiClient } from '@lib/api-client';
+
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+if (!isAdminSession(session)) return Astro.redirect('/dashboard');
+Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
+
+const overviewResult = await apiClient.get<{ userCount: number; siteCount: number; activeSites: number; provisioningSites: number }>('/api/admin/overview', Astro.request.headers.get('cookie'));
+const overview = overviewResult.success ? overviewResult.data : { userCount: 0, siteCount: 0, activeSites: 0, provisioningSites: 0 };
+
+const cards = [
+  { label: '전체 사용자', value: overview.userCount, href: '/admin/users' },
+  { label: '전체 사이트', value: overview.siteCount, href: '/admin/sites' },
+  { label: '활성 사이트', value: overview.activeSites, href: '/admin/sites' },
+  { label: '프로비저닝 중', value: overview.provisioningSites, href: '/admin/sites' },
+];
+---
+<AdminLayout title="관리자 개요" activeNav="overview">
+  <div class="mb-8">
+    <h1 class="text-2xl font-bold text-white mb-2">플랫폼 개요</h1>
+    <p class="text-surface-400">CloudPress 플랫폼 전체 사용자와 사이트 현황을 확인합니다.</p>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    {cards.map((card) => (
+      <a href={card.href} class="glass rounded-xl p-6 card-hover block">
+        <p class="text-sm text-surface-500 mb-1">{card.label}</p>
+        <p class="text-3xl font-bold text-white">{card.value}</p>
+      </a>
+    ))}
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <a href="/admin/users" class="glass rounded-xl p-6 card-hover block">
+      <h2 class="font-semibold text-white mb-2">사용자 관리</h2>
+      <p class="text-sm text-surface-400">가입한 사용자 목록과 계정 상태를 확인합니다.</p>
+    </a>
+    <a href="/admin/sites" class="glass rounded-xl p-6 card-hover block">
+      <h2 class="font-semibold text-white mb-2">사이트 관리</h2>
+      <p class="text-sm text-surface-400">전체 사용자의 호스팅 현황을 한 번에 확인합니다.</p>
+    </a>
+    <a href="/admin/activity" class="glass rounded-xl p-6 card-hover block">
+      <h2 class="font-semibold text-white mb-2">활동 로그</h2>
+      <p class="text-sm text-surface-400">플랫폼 전반의 최근 활동 내역을 조회합니다.</p>
+    </a>
+  </div>
+</AdminLayout>

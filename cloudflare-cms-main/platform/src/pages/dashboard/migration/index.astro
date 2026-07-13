@@ -1,0 +1,13 @@
+---
+import DashboardLayout from '@layouts/DashboardLayout.astro';
+import { parseSessionCookie } from '@lib/session';
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
+const steps = ['기존 WordPress에 CloudPress Easy Migration 플러그인 설치', '전체 사이트 ZIP 내보내기', 'CloudPress에 ZIP 업로드', 'Workflow가 DB/플러그인/테마/업로드를 분산 복원', '복원 검증 후 도메인 전환'];
+---
+<DashboardLayout title="이전/복원" activeNav="migration">
+  <div class="mb-8"><h1 class="text-2xl font-bold text-white mb-2">원숭이도 쉬운 WordPress 이전</h1><p class="text-surface-400">ZIP 방식으로 내보내기, 가져오기, 복원까지 처리하는 자체 마이그레이션 플러그인을 제공합니다.</p></div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"><div class="glass rounded-xl p-6"><h2 class="font-semibold text-white mb-3">포함 항목</h2><p class="text-sm text-surface-400">플러그인, 테마, WordPress DB, 글, 페이지, 카테고리, 태그, 댓글, 미디어 업로드 전체를 ZIP 패키지로 묶습니다.</p></div><div class="glass rounded-xl p-6"><h2 class="font-semibold text-white mb-3">대용량 안정성</h2><p class="text-sm text-surface-400">Cloudflare Workflow/Durable Object 배치 작업으로 파일을 나누어 복원해 대량 업로드 오류를 방지합니다.</p></div></div>
+  <div class="glass rounded-xl p-6"><h2 class="font-semibold text-white mb-4">진행 순서</h2><ol class="space-y-3 text-sm text-surface-400">{steps.map((step, index) => <li><span class="font-semibold text-white">{index + 1}.</span> {step}</li>)}</ol><div class="mt-6"><a href="/plugins/cloudpress-easy-migration.zip" class="btn-primary text-sm">마이그레이션 플러그인 다운로드</a></div></div>
+</DashboardLayout>

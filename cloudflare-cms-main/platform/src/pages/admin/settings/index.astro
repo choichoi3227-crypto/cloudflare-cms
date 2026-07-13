@@ -1,0 +1,172 @@
+---
+// 어드민 설정 페이지
+// 경로: /admin/settings
+import AdminConsoleLayout from '@layouts/AdminConsoleLayout.astro';
+---
+
+<AdminConsoleLayout>
+  <div class="p-8 space-y-8">
+    <!-- 헤더 -->
+    <div>
+      <h1 class="text-3xl font-bold text-surface-900 mb-2">시스템 설정</h1>
+      <p class="text-surface-600">어드민 패널 설정을 관리하세요</p>
+    </div>
+
+    <div class="max-w-3xl space-y-6">
+      {/* 일반 설정 */}
+      <div class="bg-white rounded-xl shadow-md p-8">
+        <h2 class="text-2xl font-bold text-surface-900 mb-6 pb-4 border-b border-surface-200">일반</h2>
+        
+        <form class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-surface-900 mb-2">서비스명</label>
+            <input
+              type="text"
+              value="Cloud Press"
+              class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-surface-900 mb-2">호스팅 URL</label>
+            <input
+              type="text"
+              value="https://cloud-press.co.kr"
+              class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+            />
+          </div>
+
+          <div class="flex items-center justify-end space-x-3 pt-4 border-t border-surface-200">
+            <button type="button" class="bg-surface-100 hover:bg-surface-200 text-surface-700 font-semibold py-2 px-6 rounded-lg transition-colors">
+              취소
+            </button>
+            <button type="submit" class="bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors">
+              저장
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* 이메일 설정 */}
+      <div class="bg-white rounded-xl shadow-md p-8">
+        <h2 class="text-2xl font-bold text-surface-900 mb-6 pb-4 border-b border-surface-200">이메일</h2>
+        
+        <form class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-surface-900 mb-2">SMTP 호스트</label>
+            <input
+              type="text"
+              placeholder="smtp.gmail.com"
+              class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 placeholder-surface-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-2">SMTP 포트</label>
+              <input
+                type="number"
+                value="587"
+                class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-surface-900 mb-2">인증 방식</label>
+              <select class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none">
+                <option>TLS</option>
+                <option>SSL</option>
+                <option>없음</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end space-x-3 pt-4 border-t border-surface-200">
+            <button type="button" class="bg-surface-100 hover:bg-surface-200 text-surface-700 font-semibold py-2 px-6 rounded-lg transition-colors">
+              취소
+            </button>
+            <button type="submit" class="bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors">
+              저장
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* 배포 설정 */}
+      <div class="bg-white rounded-xl shadow-md p-8">
+        <h2 class="text-2xl font-bold text-surface-900 mb-6 pb-4 border-b border-surface-200">배포</h2>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-surface-900 mb-2">Cloudflare API 토큰</label>
+            <div class="flex items-center space-x-2">
+              <input
+                type="password"
+                value="••••••••••••••••••••••••"
+                class="flex-1 bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+              />
+              <button type="button" class="px-4 py-2 border border-surface-200 rounded-lg text-surface-700 hover:bg-surface-50 transition-colors font-semibold text-sm">
+                변경
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <input type="checkbox" id="auto-deploy" class="w-4 h-4 text-primary-600 rounded" checked />
+            <label for="auto-deploy" class="text-sm text-surface-700">GitHub에 푸시 시 자동 배포</label>
+          </div>
+
+          <div class="flex items-center justify-end space-x-3 pt-4 border-t border-surface-200">
+            <button class="bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors">
+              지금 배포
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 공지사항 설정 */}
+      <div class="bg-white rounded-xl shadow-md p-8">
+        <h2 class="text-2xl font-bold text-surface-900 mb-6 pb-4 border-b border-surface-200">공지사항</h2>
+        
+        <form class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-surface-900 mb-2">GitHub 저장소</label>
+            <input
+              type="text"
+              value="myorg/announcements"
+              class="w-full bg-surface-50 border border-surface-200 rounded-lg p-3 text-surface-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
+            />
+            <p class="text-xs text-surface-500 mt-2">공지사항을 저장할 GitHub 저장소입니다</p>
+          </div>
+
+          <div class="flex items-center justify-end space-x-3 pt-4 border-t border-surface-200">
+            <button type="button" class="bg-surface-100 hover:bg-surface-200 text-surface-700 font-semibold py-2 px-6 rounded-lg transition-colors">
+              취소
+            </button>
+            <button type="submit" class="bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors">
+              저장
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* 백업 설정 */}
+      <div class="bg-info-50 rounded-xl shadow-md p-8 border-l-4 border-info-500">
+        <h2 class="text-2xl font-bold text-info-900 mb-6 pb-4 border-b border-info-200">백업</h2>
+        
+        <div class="space-y-4">
+          <p class="text-sm text-info-800">
+            마지막 백업: 2시간 전
+          </p>
+          <div class="flex items-center space-x-3">
+            <button class="px-4 py-2 bg-info-600 hover:bg-info-700 text-white font-semibold rounded-lg transition-colors">
+              지금 백업
+            </button>
+            <button class="px-4 py-2 border border-info-300 text-info-700 hover:bg-info-100 font-semibold rounded-lg transition-colors">
+              백업 관리
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</AdminConsoleLayout>

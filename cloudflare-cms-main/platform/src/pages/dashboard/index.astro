@@ -1,0 +1,37 @@
+---
+import DashboardLayout from '@layouts/DashboardLayout.astro';
+import { parseSessionCookie } from '@lib/session';
+import { apiClient } from '@lib/api-client';
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
+const showNotFoundError = Astro.url.searchParams.get('error') === 'not_found';
+const sitesResult = await apiClient.get<Array<{ id: string; site_name: string; domain: string; status: string; created_at: number }>>('/api/sites', Astro.request.headers.get('cookie'));
+const sites = sitesResult.success ? sitesResult.data : [];
+const metrics = [
+  ['PHP-WASM', '8.3', '공식 런타임 전면 적용'],
+  ['평균 레이턴시', '18ms', 'Worker edge cache 기준'],
+  ['SQLite Shards', '10+', 'database01.db부터 자동 확장'],
+  ['호스팅 모드', 'Single Worker', '루트 wrangler.toml 1회 배포'],
+];
+---
+<DashboardLayout title="호스팅 관리" activeNav="hosting">
+  <div class="mb-8"><h1 class="text-2xl font-bold text-white mb-2">WordPress 호스팅 관리</h1><p class="text-surface-400">하나의 Cloudflare Worker로 모든 WordPress 사이트를 라우팅하고 php-wasm/SQLite shard 상태를 확인합니다.</p></div>
+  {showNotFoundError && <div class="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">해당 호스팅을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.</div>}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">{metrics.map(([label, value, desc]) => <div class="glass rounded-xl p-6"><p class="text-sm text-surface-500 mb-1">{label}</p><p class="text-3xl font-bold text-white">{value}</p><p class="text-sm text-surface-400 mt-2">{desc}</p></div>)}</div>
+  <section class="glass rounded-xl p-6 mb-6"><h2 class="text-lg font-semibold text-white mb-4">배포 정책</h2><div class="space-y-3 text-sm text-surface-400"><p>• `cloudpress-wordpress-hosting` Worker 하나만 배포합니다.</p><p>• 사이트 생성 시 개별 Worker를 만들지 않고 도메인 route, DB, KV, shard registry만 등록합니다.</p><p>• PHP-WASM 실행, Astro HTML 최적화, WP Rocket 캐싱은 공통 Worker 파이프라인에서 처리합니다.</p></div></section>
+  <section class="glass rounded-xl p-6 mb-6">
+    <h2 class="text-lg font-semibold text-white mb-4">호스팅 목록</h2>
+    {sites.length === 0 ? (
+      <p class="text-sm text-surface-400">아직 생성된 호스팅이 없습니다. <a href="/dashboard/sites/create" class="text-brand-500 hover:underline">사이트 만들기</a></p>
+    ) : (
+      <div class="space-y-2">{sites.map((site) => (
+        <a href={`/dashboard/hosting/${site.id}`} class="flex items-center justify-between p-3 rounded-lg hover:bg-surface-800/50 transition-colors">
+          <div><p class="text-sm font-medium text-white">{site.site_name}</p><p class="text-xs text-surface-500">{site.domain}</p></div>
+          <svg class="w-4 h-4 text-surface-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      ))}</div>
+    )}
+  </section>
+  <section class="grid grid-cols-1 md:grid-cols-3 gap-4"><a class="btn-secondary" href="/dashboard/domains">도메인 관리</a><a class="btn-secondary" href="/dashboard/cdn">CDN 관리</a><a class="btn-secondary" href="/dashboard/migration">마이그레이션</a></section>
+</DashboardLayout>

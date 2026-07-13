@@ -1,0 +1,53 @@
+---
+// platform/src/pages/admin/activity/index.astro
+import AdminLayout from '@layouts/AdminLayout.astro';
+import { parseSessionCookie } from '@lib/session';
+import { isAdminSession } from '@lib/admin';
+import { apiClient } from '@lib/api-client';
+
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+if (!isAdminSession(session)) return Astro.redirect('/dashboard');
+Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
+
+interface ActivityLog { id: string; user_id: string; action: string; resource_type: string | null; resource_id: string | null; metadata: string | null; ip_address: string | null; created_at: number; }
+const logsResult = await apiClient.get<ActivityLog[]>('/api/admin/activity?limit=100', Astro.request.headers.get('cookie'));
+const logs = logsResult.success ? logsResult.data : [];
+
+const actionLabels: Record<string, string> = {
+  'site.created': '사이트 생성',
+  'site.deleted': '사이트 삭제',
+};
+---
+<AdminLayout title="활동 로그" activeNav="activity">
+  <div class="mb-8">
+    <h1 class="text-2xl font-bold text-white mb-2">활동 로그</h1>
+    <p class="text-surface-400">플랫폼 전반에서 발생한 최근 활동 {logs.length}건입니다.</p>
+  </div>
+
+  <div class="glass rounded-xl overflow-hidden overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-surface-800">
+        <tr>
+          <th class="text-left p-4 text-surface-400">동작</th>
+          <th class="text-left p-4 text-surface-400">사용자 ID</th>
+          <th class="text-left p-4 text-surface-400">대상</th>
+          <th class="text-left p-4 text-surface-400">IP</th>
+          <th class="text-left p-4 text-surface-400">시각</th>
+        </tr>
+      </thead>
+      <tbody>
+        {logs.map((log) => (
+          <tr class="border-t border-surface-800">
+            <td class="p-4 font-medium text-white">{actionLabels[log.action] || log.action}</td>
+            <td class="p-4 text-surface-400 font-mono text-xs">{log.user_id}</td>
+            <td class="p-4 text-surface-400 text-xs">{log.resource_type ? `${log.resource_type}:${log.resource_id}` : '—'}</td>
+            <td class="p-4 text-surface-400 text-xs">{log.ip_address || '—'}</td>
+            <td class="p-4 text-surface-400">{new Date(log.created_at * 1000).toLocaleString('ko-KR')}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    {logs.length === 0 && <div class="p-10 text-center text-surface-500">활동 내역이 없습니다.</div>}
+  </div>
+</AdminLayout>

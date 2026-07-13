@@ -1,0 +1,94 @@
+---
+// pages/announcements/index.astro - 공지사항 목록 페이지
+import PublicLayout from '@layouts/PublicLayout.astro';
+import { AnnouncementManager } from '@lib/announcement-manager';
+
+const manager = new AnnouncementManager('owner', 'example.com');
+const announcements = await manager.getAll({ limit: 20 });
+const featured = await manager.getFeatured(3);
+---
+
+<PublicLayout>
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-surface-900 mb-4">공지사항</h1>
+      <p class="text-lg text-surface-600">최신 업데이트와 소식을 확인하세요</p>
+    </div>
+
+    <!-- Featured Announcements -->
+    {featured.length > 0 && (
+      <div class="mb-12">
+        <h2 class="text-2xl font-bold text-surface-900 mb-6">주목할 공지사항</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {featured.map((announcement) => (
+            <a
+              href={`/announcements/${announcement.id}`}
+              class="group bg-white rounded-xl p-6 shadow-light-md hover:shadow-lg transition-all border-l-4 border-danger-500"
+            >
+              <div class="flex items-start justify-between mb-3">
+                <span class="inline-block px-3 py-1 bg-danger-100 text-danger-700 text-sm font-semibold rounded-full">
+                  {announcement.priority === 'critical' ? '긴급' : '중요'}
+                </span>
+                <span class="text-sm text-surface-500">
+                  {new Date(announcement.publishedAt).toLocaleDateString('ko-KR')}
+                </span>
+              </div>
+              <h3 class="text-lg font-bold text-surface-900 group-hover:text-primary-600 transition-colors mb-2">
+                {announcement.title}
+              </h3>
+              <p class="text-surface-600 line-clamp-2">{announcement.excerpt || announcement.content}</p>
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <!-- All Announcements -->
+    <div class="space-y-4">
+      <h2 class="text-2xl font-bold text-surface-900 mb-6">모든 공지사항</h2>
+      {announcements.length > 0 ? (
+        <div class="space-y-3">
+          {announcements.map((announcement) => (
+            <a
+              href={`/announcements/${announcement.id}`}
+              class="block bg-white rounded-lg p-4 shadow-light-md hover:shadow-md hover:bg-surface-50 transition-all border-l-4 border-surface-200 hover:border-primary-500"
+            >
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <div class="flex items-center space-x-3 mb-2">
+                    <span class={`inline-block px-2 py-1 text-xs font-semibold rounded-md ${
+                      announcement.priority === 'critical'
+                        ? 'bg-danger-100 text-danger-700'
+                        : announcement.priority === 'high'
+                        ? 'bg-warning-100 text-warning-700'
+                        : 'bg-surface-200 text-surface-700'
+                    }`}>
+                      {announcement.category}
+                    </span>
+                    <span class="text-sm text-surface-500">
+                      {new Date(announcement.publishedAt).toLocaleDateString('ko-KR')}
+                    </span>
+                  </div>
+                  <h3 class="text-lg font-bold text-surface-900 hover:text-primary-600">
+                    {announcement.title}
+                  </h3>
+                </div>
+                <div class="text-right ml-4">
+                  <div class="text-sm text-surface-500">{announcement.viewCount || 0} 조회</div>
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div class="text-center py-12">
+          <svg class="w-12 h-12 mx-auto text-surface-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <p class="text-surface-600">공지사항이 없습니다</p>
+        </div>
+      )}
+    </div>
+  </div>
+</PublicLayout>

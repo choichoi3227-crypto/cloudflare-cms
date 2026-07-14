@@ -58,12 +58,19 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 
         <hr class="my-4 border-surface-200" />
 
-        <button class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-danger-50 text-surface-700 hover:text-danger-600 transition-colors text-left">
+        <a href="/dashboard" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-surface-100 text-surface-700 hover:text-surface-900 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          <span>일반 대시보드로 돌아가기</span>
+        </a>
+
+        <a href="/auth/logout" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-danger-50 text-surface-700 hover:text-danger-600 transition-colors text-left">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
           <span>로그아웃</span>
-        </button>
+        </a>
       </nav>
     </aside>
 

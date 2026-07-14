@@ -1,7 +1,7 @@
 ---
 // platform/src/layouts/BaseLayout.astro
 interface Props { title: string; description?: string; ogImage?: string; noIndex?: boolean; }
-const { title, description = 'CloudPress - Cloudflare 기반 차세대 AI CMS. WordPress보다 쉽고, Blogger보다 강력합니다.', ogImage = '/og-image.png', noIndex = false } = Astro.props;
+const { title, description = 'CloudPress - Cloudflare 기반 서버리스 WordPress 호스팅. 서버 없이, PHP-WASM으로 Edge에서 진짜 워드프레스를 운영하세요.', ogImage = '/og-image.png', noIndex = false } = Astro.props;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
 ---
 <!DOCTYPE html>
@@ -55,7 +55,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
       <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
         <div class="col-span-2 md:col-span-1">
           <a href="/" class="flex items-center gap-2 mb-4"><div class="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="text-lg font-bold text-white">Cloud<span class="text-brand-500">Press</span></span></a>
-          <p class="text-sm text-surface-500">Cloudflare 기반 차세대 AI CMS</p>
+          <p class="text-sm text-surface-500">Cloudflare 기반 서버리스 WordPress 호스팅</p>
         </div>
         <div><h3 class="text-sm font-semibold text-surface-300 mb-3">제품</h3><ul class="space-y-2"><li><a href="/features" class="text-sm text-surface-500 hover:text-surface-300">기능</a></li><li><a href="/docs" class="text-sm text-surface-500 hover:text-surface-300">문서</a></li></ul></div>
         <div><h3 class="text-sm font-semibold text-surface-300 mb-3">리소스</h3><ul class="space-y-2"><li><a href="/docs" class="text-sm text-surface-500 hover:text-surface-300">가이드</a></li><li><a href="/docs" class="text-sm text-surface-500 hover:text-surface-300">API 레퍼런스</a></li></ul></div>

@@ -2,14 +2,14 @@
 // platform/src/components/landing/HowItWorks.astro
 const steps = [
   { step:'01', title:'Cloudflare 로그인', desc:'CloudPress에 접속해서 Cloudflare 계정으로 로그인합니다. 별도 회원가입이 필요 없습니다.' },
-  { step:'02', title:'사이트 생성', desc:'사이트 이름과 도메인을 입력하면 Worker, D1, KV가 자동으로 생성됩니다.' },
-  { step:'03', title:'AI로 콘텐츠 작성', desc:'키워드를 입력하면 AI가 SEO 최적화된 글을 자동으로 작성합니다.' },
-  { step:'04', title:'즉시 운영', desc:'발행 버튼 하나로 Edge에 배포됩니다. 서버 관리는 CloudPress가 알아서 합니다.' },
+  { step:'02', title:'워드프레스 생성', desc:'사이트 이름과 도메인을 입력하면 워드프레스 인스턴스와 Worker, D1, KV가 자동으로 생성됩니다.' },
+  { step:'03', title:'플러그인·테마 설정', desc:'wp-admin에 접속해 원하는 플러그인과 테마를 설치하고 사이트를 꾸밉니다.' },
+  { step:'04', title:'즉시 운영', desc:'설정 완료 즉시 Edge에 배포됩니다. 서버 관리는 CloudPress가 알아서 합니다.' },
 ];
 ---
 <section class="section-padding bg-surface-900/50 relative">
   <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="text-center mb-16"><h2 class="text-3xl sm:text-4xl font-bold text-white mb-4"><span class="gradient-text">4단계</span>로 시작하세요</h2></div>
+    <div class="text-center mb-16"><h2 class="text-3xl sm:text-4xl font-bold text-white mb-4"><span class="gradient-text">4단계</span>로 워드프레스 시작하세요</h2></div>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
       {steps.map((s, i) => (
         <div class="relative">

@@ -1,0 +1,10 @@
+# platform/.dev.vars.example
+# 로컬 개발 시 이 파일을 .dev.vars 로 복사한 뒤 값을 채우세요.
+# .dev.vars 는 .gitignore에 반드시 포함되어야 하며 절대 커밋하지 마세요.
+
+CLOUDFLARE_OAUTH_CLIENT_ID=
+CLOUDFLARE_OAUTH_CLIENT_SECRET=
+CLOUDFLARE_OAUTH_REDIRECT_URI=http://localhost:4321/auth/callback
+PLATFORM_API_URL=http://localhost:8787
+ADMIN_EMAILS=you@example.com
+AI_GATEWAY_URL=http://localhost:8788

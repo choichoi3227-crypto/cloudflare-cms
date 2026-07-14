@@ -7,7 +7,7 @@ const guideSections = [
     title: '시작하기',
     icon: 'M13 10V3L4 14h7v7l9-11h-7z',
     items: [
-      { title: 'CloudPress란?', desc: 'Cloudflare Workers 위에서 동작하는 WordPress 호스팅/AI CMS 플랫폼 개요' },
+      { title: 'CloudPress란?', desc: 'Cloudflare Workers 위에서 동작하는 서버리스 WordPress 호스팅 플랫폼 개요' },
       { title: 'Cloudflare 계정으로 로그인', desc: 'OAuth 기반 로그인 방식과 필요한 계정 권한 안내' },
       { title: '첫 사이트 만들기', desc: '사이트 이름과 도메인을 입력해 몇 분 안에 WordPress 사이트를 생성하는 방법' },
     ],
@@ -28,7 +28,7 @@ const guideSections = [
     items: [
       { title: 'WP Rocket 캐시 레이어', desc: 'HTML/에셋 캐시 정책과 캐시 무효화(Purge) 방법' },
       { title: 'Cloudflare Cache Rules', desc: '도메인별 캐시 규칙, Page Rules와의 관계' },
-      { title: '이미지 최적화', desc: 'AI 이미지 생성 Worker와 반응형 srcset 자동 생성' },
+      { title: '이미지 최적화', desc: 'WebP/AVIF 자동 변환과 반응형 srcset 자동 생성' },
     ],
   },
   {
@@ -37,15 +37,6 @@ const guideSections = [
     items: [
       { title: '기존 WordPress에서 이전하기', desc: 'CloudPress Easy Migration 플러그인으로 ZIP 내보내기/가져오기' },
       { title: '대용량 사이트 복원', desc: 'Workflow 기반 배치 복원으로 대량 업로드 오류를 방지하는 방법' },
-    ],
-  },
-  {
-    title: 'AI 기능',
-    icon: 'M12 2l2.4 7.2H22l-6 4.6 2.3 7.2L12 16.4 5.7 21l2.3-7.2-6-4.6h7.6z',
-    items: [
-      { title: 'AI 글쓰기', desc: '6가지 유형의 AI 콘텐츠 생성 기능 사용법' },
-      { title: 'AI SEO 분석', desc: 'Meta, Title, Readability 등 SEO 점수를 자동으로 분석하는 방법' },
-      { title: 'AI 이미지 생성', desc: '프롬프트 기반 썸네일/본문 이미지 자동 생성' },
     ],
   },
   {

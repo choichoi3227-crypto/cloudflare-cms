@@ -1,8 +1,8 @@
 ---
 // platform/src/pages/dashboard/billing.astro
-import DashboardLayout from '@layouts/DashboardLayout.astro';
-import { parseSessionCookie } from '@lib/session';
-import { apiClient } from '@lib/api-client';
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import { parseSessionCookie } from '../../lib/session';
+import { apiClient } from '../../lib/api-client';
 
 const session = parseSessionCookie(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect('/auth/login');

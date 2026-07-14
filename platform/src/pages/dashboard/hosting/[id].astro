@@ -1,8 +1,8 @@
 ---
 // platform/src/pages/dashboard/hosting/[id].astro
-import DashboardLayout from '@layouts/DashboardLayout.astro';
-import { parseSessionCookie } from '@lib/session';
-import { apiClient } from '@lib/api-client';
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { parseSessionCookie } from '../../../lib/session';
+import { apiClient } from '../../../lib/api-client';
 import type { Site } from '@shared/types/site';
 
 const session = parseSessionCookie(Astro.request.headers.get('cookie'));
@@ -18,162 +18,68 @@ if (!siteResult.success || !siteResult.data) {
 
 const site = siteResult.data;
 
-// Hosting metrics (would come from Cloudflare Analytics Engine)
-const hostingMetrics = {
-  storageUsedGB: 2.5,
-  storageQuotaGB: -1, // unlimited
-  dbSizeGB: 1.2,
-  requestsPerSecond: 125,
-  requestsPerMinute: 7500,
-  requestsPerHour: 450000,
-  requestsPerDay: 10800000,
-  cacheHitRate: 85.5,
-  avgResponseTime: 45,
+const statusLabels: Record<string, { label: string; className: string }> = {
+  active: { label: '활성', className: 'bg-green-500/10 text-green-400' },
+  provisioning: { label: '준비 중', className: 'bg-yellow-500/10 text-yellow-400' },
+  suspended: { label: '일시 중지', className: 'bg-orange-500/10 text-orange-400' },
+  deleted: { label: '삭제됨', className: 'bg-red-500/10 text-red-400' },
 };
-
-// Mock WordPress sites (would come from database)
-const wordPressSites = [
-  {
-    id: 'wp-001',
-    title: site.site_name,
-    domain: site.domain,
-    postsCount: 42,
-    pagesCount: 8,
-    usersCount: 3,
-    dbSizeGB: 1.2,
-    phpVersion: '8.3',
-    theme: 'Twenty Twenty-Four',
-    pluginCount: 5,
-    cacheHitRate: 87.3,
-    status: 'active',
-  },
-];
+const statusInfo = statusLabels[site.status] || statusLabels.provisioning;
 ---
 <DashboardLayout title={`${site.site_name} - 호스팅 상세`} activeNav="hosting">
   <div class="mb-8">
-    <a href="/dashboard/hosting" class="text-sm text-surface-500 hover:text-surface-300 mb-3 inline-flex items-center gap-1">
+    <a href="/dashboard/sites" class="text-sm text-surface-500 hover:text-surface-300 mb-3 inline-flex items-center gap-1">
       <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="15 18 9 12 15 6"/></svg>
-      호스팅 관리
+      내 사이트
     </a>
-    <h1 class="text-3xl font-bold text-white">{site.site_name} 호스팅</h1>
-    <p class="text-surface-400 mt-1">모든 WordPress 인스턴스 및 리소스 상태</p>
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <div class="flex items-center gap-3 mb-1">
+          <h1 class="text-2xl font-bold text-white">{site.site_name}</h1>
+          <span class:list={['px-2 py-1 text-xs font-medium rounded-full', statusInfo.className]}>{statusInfo.label}</span>
+        </div>
+        <p class="text-surface-400">{site.domain}</p>
+      </div>
+      <div class="flex gap-2">
+        <a href={`https://${site.domain}/wp-admin/`} target="_blank" rel="noreferrer" class="btn-secondary text-sm">WordPress 관리자</a>
+        <a href={`https://${site.domain}/`} target="_blank" rel="noreferrer" class="btn-secondary text-sm">사이트 열기</a>
+      </div>
+    </div>
   </div>
 
-  <!-- 호스팅 통계 -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-    <div class="glass rounded-2xl p-6">
-      <p class="text-xs text-surface-500 font-semibold mb-2">스토리지 사용량</p>
-      <p class="text-3xl font-bold text-white mb-1">{hostingMetrics.storageUsedGB}GB</p>
-      <p class="text-xs text-surface-400">무제한</p>
-    </div>
-    <div class="glass rounded-2xl p-6">
-      <p class="text-xs text-surface-500 font-semibold mb-2">데이터베이스 크기</p>
-      <p class="text-3xl font-bold text-white mb-1">{hostingMetrics.dbSizeGB}GB</p>
-      <p class="text-xs text-surface-400">무제한</p>
-    </div>
-    <div class="glass rounded-2xl p-6">
-      <p class="text-xs text-surface-500 font-semibold mb-2">캐시 히트율</p>
-      <p class="text-3xl font-bold text-white mb-1">{hostingMetrics.cacheHitRate}%</p>
-      <p class="text-xs text-surface-400">WP-Rocket + Cloudflare</p>
-    </div>
-    <div class="glass rounded-2xl p-6">
-      <p class="text-xs text-surface-500 font-semibold mb-2">평균 응답시간</p>
-      <p class="text-3xl font-bold text-white mb-1">{hostingMetrics.avgResponseTime}ms</p>
-      <p class="text-xs text-surface-400">WASM 기준</p>
-    </div>
+    <div class="glass rounded-xl p-5"><p class="text-xs text-surface-500 mb-1">호스팅 모드</p><p class="text-sm font-semibold text-white">Single Worker</p></div>
+    <div class="glass rounded-xl p-5"><p class="text-xs text-surface-500 mb-1">PHP-WASM Worker</p><p class="text-sm font-semibold text-white truncate">{site.php_wasm_worker_name || '—'}</p></div>
+    <div class="glass rounded-xl p-5"><p class="text-xs text-surface-500 mb-1">Shard 수</p><p class="text-sm font-semibold text-white">{site.shard_count ?? 10}개</p></div>
+    <div class="glass rounded-xl p-5"><p class="text-xs text-surface-500 mb-1">활성 Shard</p><p class="text-sm font-semibold text-white">{site.active_shard_key || 'database01.db'}</p></div>
   </div>
 
-  <!-- 요청 통계 -->
-  <div class="glass rounded-2xl p-6 mb-8">
-    <h2 class="text-lg font-semibold text-white mb-4">요청/호출 통계</h2>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div class="p-4 bg-surface-800/50 rounded-lg border border-surface-700">
-        <p class="text-xs text-surface-500 mb-1">초당 요청</p>
-        <p class="text-xl font-bold text-white">{hostingMetrics.requestsPerSecond}/초</p>
+  <section class="glass rounded-xl p-6 mb-6">
+    <h2 class="text-lg font-semibold text-white mb-4">인프라 정보</h2>
+    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+      <div><dt class="text-surface-500 mb-1">사이트 ID</dt><dd class="text-surface-200 font-mono text-xs break-all">{site.id}</dd></div>
+      <div><dt class="text-surface-500 mb-1">Worker</dt><dd class="text-surface-200 font-mono text-xs break-all">{site.worker_id || '—'}</dd></div>
+      <div><dt class="text-surface-500 mb-1">D1 Database ID</dt><dd class="text-surface-200 font-mono text-xs break-all">{site.d1_id || '—'}</dd></div>
+      <div><dt class="text-surface-500 mb-1">KV Namespace ID</dt><dd class="text-surface-200 font-mono text-xs break-all">{site.kv_id || '—'}</dd></div>
+      <div><dt class="text-surface-500 mb-1">WordPress 관리자 계정</dt><dd class="text-surface-200">{site.wordpress_admin_username || '—'}</dd></div>
+      <div><dt class="text-surface-500 mb-1">생성일</dt><dd class="text-surface-200">{new Date(site.created_at * 1000).toLocaleString('ko-KR')}</dd></div>
+    </dl>
+    {site.wordpress_admin_password_hint && (
+      <div class="mt-4 p-3 rounded-lg bg-surface-800/50 border border-surface-700 text-xs text-surface-400">
+        초기 비밀번호는 사이트 생성 시 1회만 표시됩니다. 분실 시 WordPress 관리자 화면에서 재설정해주세요.
       </div>
-      <div class="p-4 bg-surface-800/50 rounded-lg border border-surface-700">
-        <p class="text-xs text-surface-500 mb-1">분당 요청</p>
-        <p class="text-xl font-bold text-white">{hostingMetrics.requestsPerMinute.toLocaleString()}/분</p>
-      </div>
-      <div class="p-4 bg-surface-800/50 rounded-lg border border-surface-700">
-        <p class="text-xs text-surface-500 mb-1">시간당 요청</p>
-        <p class="text-xl font-bold text-white">{(hostingMetrics.requestsPerHour / 1000).toFixed(1)}K/시간</p>
-      </div>
-      <div class="p-4 bg-surface-800/50 rounded-lg border border-surface-700">
-        <p class="text-xs text-surface-500 mb-1">일일 요청</p>
-        <p class="text-xl font-bold text-white">{(hostingMetrics.requestsPerDay / 1000000).toFixed(2)}M/일</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- WordPress 인스턴스 카드 -->
-  <section class="mb-8">
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="text-xl font-semibold text-white">WordPress 인스턴스</h2>
-      <a href="/dashboard/sites/create" class="btn-primary text-sm">새 인스턴스 추가</a>
-    </div>
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {wordPressSites.map((wp) => (
-        <a href={`/dashboard/wordpress/${wp.id}`} class="group glass rounded-2xl p-6 hover:border-brand-500/50 transition-all hover:scale-[1.02] cursor-pointer">
-          <div class="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <h3 class="text-lg font-semibold text-white group-hover:text-brand-400 transition-colors">{wp.title}</h3>
-              <p class="text-sm text-surface-400">{wp.domain}</p>
-            </div>
-            <span class="px-2 py-1 bg-green-500/10 text-green-400 text-xs font-semibold rounded-full">{wp.status}</span>
-          </div>
-          
-          <div class="space-y-3 mb-4 pb-4 border-b border-surface-700">
-            <div class="flex justify-between text-sm">
-              <span class="text-surface-500">PHP 버전</span>
-              <span class="text-white font-medium">{wp.phpVersion}</span>
-            </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-surface-500">DB 크기</span>
-              <span class="text-white font-medium">{wp.dbSizeGB}GB</span>
-            </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-surface-500">캐시 히트율</span>
-              <span class="text-white font-medium">{wp.cacheHitRate}%</span>
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-3 gap-3 text-xs text-center">
-            <div class="bg-surface-800/50 rounded-lg p-2">
-              <p class="text-surface-500 mb-1">게시물</p>
-              <p class="text-lg font-bold text-white">{wp.postsCount}</p>
-            </div>
-            <div class="bg-surface-800/50 rounded-lg p-2">
-              <p class="text-surface-500 mb-1">페이지</p>
-              <p class="text-lg font-bold text-white">{wp.pagesCount}</p>
-            </div>
-            <div class="bg-surface-800/50 rounded-lg p-2">
-              <p class="text-surface-500 mb-1">사용자</p>
-              <p class="text-lg font-bold text-white">{wp.usersCount}</p>
-            </div>
-          </div>
-          
-          <div class="mt-4 flex items-center gap-2 text-surface-400 group-hover:text-brand-400 transition-colors text-sm">
-            상세 보기
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </div>
-        </a>
-      ))}
-    </div>
+    )}
   </section>
 
   <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
     <a class="btn-secondary text-sm justify-center" href="/dashboard/domains">도메인 관리</a>
-    <a class="btn-secondary text-sm justify-center" href="/dashboard/cdn">CDN 캐시 관리</a>
+    <a class="btn-secondary text-sm justify-center" href="/dashboard/cdn">CDN 관리</a>
     <a class="btn-secondary text-sm justify-center" href="/dashboard/migration">마이그레이션</a>
   </section>
 
-  <section class="glass rounded-2xl p-6 border border-red-500/20">
+  <section class="glass rounded-xl p-6 border border-red-500/20">
     <h2 class="text-lg font-semibold text-red-400 mb-2">위험 구역</h2>
-    <p class="text-sm text-surface-400 mb-4">호스팅을 삭제하면 모든 WordPress 인스턴스가 제거되고 도메인 라우팅이 해제됩니다. 이 작업은 되돌릴 수 없습니다.</p>
+    <p class="text-sm text-surface-400 mb-4">호스팅을 삭제하면 도메인 라우팅이 해제되고 해당 사이트 정보가 더 이상 대시보드에 표시되지 않습니다. 이 작업은 되돌릴 수 없습니다.</p>
     <button id="delete-hosting-btn" data-site-id={site.id} class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-500/10 text-red-400 font-medium rounded-lg border border-red-500/30 hover:bg-red-500/20 transition-colors">
       호스팅 삭제
     </button>

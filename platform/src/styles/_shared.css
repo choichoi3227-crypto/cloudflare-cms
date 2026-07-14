@@ -1,0 +1,28 @@
+/* platform/src/styles/_shared.css
+ *
+ * 이 파일이 유일한 CSS 진입점입니다. 모든 레이아웃(BaseLayout, DashboardLayout, AdminLayout)은
+ * 이 파일 하나만 import 합니다.
+ *
+ * 오브젝트별로 파일을 분리해 혼동을 방지합니다:
+ *   base.css    - 배경/리셋/폰트 (오브젝트 스타일 금지)
+ *   text.css    - 텍스트/타이포그래피 전용
+ *   buttons.css - 버튼 오브젝트 전용
+ *   forms.css   - 입력 필드 오브젝트 전용
+ *   cards.css   - 카드/패널/팝업 오브젝트 전용
+ *   badges.css  - 상태 배지 오브젝트 전용 (여러 페이지의 상태 표시를 공통 클래스로 통합)
+ *   layout.css  - 페이지/섹션 여백 등 레이아웃 전용
+ *
+ * 새 스타일을 추가할 때는 해당 오브젝트의 파일에만 추가하고, 다른 파일에 같은 성격의
+ * 클래스를 중복 정의하지 마세요. 새로운 오브젝트 종류가 생기면 새 파일을 만들고 여기서 import하세요.
+ */
+@import './base.css';
+@import './text.css';
+@import './buttons.css';
+@import './forms.css';
+@import './cards.css';
+@import './badges.css';
+@import './layout.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

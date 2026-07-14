@@ -1,0 +1,12 @@
+/* platform/src/styles/layout.css
+ * 페이지/섹션 레이아웃 전용 유틸리티 (여백, 그리드 폭 등).
+ * 오브젝트(카드, 버튼 등) 스타일은 이 파일에 넣지 않습니다.
+ */
+@layer components {
+  .section-padding {
+    @apply py-20 md:py-28;
+  }
+  .page-container {
+    @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}

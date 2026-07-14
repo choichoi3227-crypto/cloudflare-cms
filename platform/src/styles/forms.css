@@ -1,0 +1,17 @@
+/* platform/src/styles/forms.css
+ * 폼 입력(오브젝트) 전용 스타일.
+ * 버튼은 buttons.css를 사용하세요 (제출 버튼도 btn-primary 등을 그대로 사용).
+ */
+@layer components {
+  .input-field {
+    @apply w-full px-4 py-3 bg-surface-800/50 border border-surface-700 rounded-lg text-surface-100
+           placeholder-surface-500 transition-colors
+           focus:border-brand-500 focus:ring-1 focus:ring-brand-500/50 focus:outline-none;
+  }
+  .select-field {
+    @apply input-field appearance-none cursor-pointer;
+  }
+  .label-field {
+    @apply block text-sm font-medium text-surface-300 mb-2;
+  }
+}

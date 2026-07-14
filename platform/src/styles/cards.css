@@ -1,0 +1,37 @@
+/* platform/src/styles/cards.css
+ * 카드/패널/팝업(오브젝트) 전용 스타일.
+ * 버튼, 배지, 텍스트 전용 스타일은 이 파일에 넣지 않습니다.
+ */
+@layer components {
+  /* 반투명 유리 패널 - 카드, 헤더, 사이드바 등 배경 컨테이너에 사용 */
+  .glass {
+    @apply bg-surface-900/80 backdrop-blur-xl border border-surface-700/50;
+  }
+
+  /* glass 카드가 링크/버튼일 때 hover 인터랙션 (예: 관리자 개요 카드) */
+  .card-hover {
+    @apply transition-all hover:border-brand-500/40 hover:-translate-y-0.5;
+  }
+
+  /* 모달/팝업 오버레이 및 패널 */
+  .popup-overlay {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4;
+  }
+  .popup-panel {
+    @apply glass rounded-2xl p-6 w-full max-w-md;
+  }
+
+  /* 인라인 알림/에러 박스 - 폼 오류, 삭제 실패, 안내 메시지 등에 공통 사용 */
+  .alert {
+    @apply p-3 rounded-lg text-sm border;
+  }
+  .alert-error {
+    @apply alert bg-red-500/10 border-red-500/30 text-red-400;
+  }
+  .alert-success {
+    @apply alert bg-green-500/10 border-green-500/30 text-green-400;
+  }
+  .alert-info {
+    @apply alert bg-brand-500/10 border-brand-500/30 text-brand-500;
+  }
+}

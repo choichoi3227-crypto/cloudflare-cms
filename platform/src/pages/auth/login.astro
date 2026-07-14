@@ -1,7 +1,7 @@
 ---
 // platform/src/pages/auth/login.astro
-import BaseLayout from '@layouts/BaseLayout.astro';
-import { parseSessionCookie } from '@lib/session';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { parseSessionCookie } from '../../lib/session';
 
 // 이미 로그인된 사용자는 대시보드로 즉시 이동합니다.
 const session = parseSessionCookie(Astro.request.headers.get('cookie'));

@@ -1,13 +1,8 @@
 ---
 // platform/src/pages/dashboard/wordpress/[id].astro
 import DashboardLayout from '@layouts/DashboardLayout.astro';
-import { parseSessionCookie } from '@lib/session';
-import { apiClient } from '@lib/api-client';
 
-const session = parseSessionCookie(Astro.request.headers.get('cookie'));
-if (!session) return Astro.redirect('/auth/login');
-Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
-
+// 인증/세션 검증은 src/middleware.ts에서 전역으로 처리됩니다.
 const { id } = Astro.params;
 
 // Mock WordPress site details (would come from database)
@@ -41,35 +36,35 @@ const wpSite = {
 ---
 <DashboardLayout title={`${wpSite.siteName} - WordPress 상세`} activeNav="hosting">
   <div class="mb-8">
-    <a href={`/dashboard/hosting/hosting-001`} class="text-sm text-surface-500 hover:text-surface-300 mb-3 inline-flex items-center gap-1">
+    <a href={`/dashboard/hosting/hosting-001`} class="text-sm text-surface-500 hover:text-surface-700 mb-3 inline-flex items-center gap-1">
       <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="15 18 9 12 15 6"/></svg>
       호스팅 상세
     </a>
-    <h1 class="text-3xl font-bold text-white">{wpSite.siteName}</h1>
-    <p class="text-surface-400 mt-1">{wpSite.domain}</p>
+    <h1 class="text-3xl font-bold text-surface-900">{wpSite.siteName}</h1>
+    <p class="text-surface-500 mt-1">{wpSite.domain}</p>
   </div>
 
   <!-- WordPress 시스템 정보 -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
     <div class="glass rounded-2xl p-6">
       <p class="text-xs text-surface-500 font-semibold mb-2">PHP 버전</p>
-      <p class="text-2xl font-bold text-white">{wpSite.phpVersion}</p>
-      <p class="text-xs text-surface-400 mt-1">php-wasm</p>
+      <p class="text-2xl font-bold text-surface-900">{wpSite.phpVersion}</p>
+      <p class="text-xs text-surface-500 mt-1">php-wasm</p>
     </div>
     <div class="glass rounded-2xl p-6">
       <p class="text-xs text-surface-500 font-semibold mb-2">DB 크기</p>
-      <p class="text-2xl font-bold text-white">{wpSite.dbSizeGB}GB</p>
-      <p class="text-xs text-surface-400 mt-1">{wpSite.dbType}</p>
+      <p class="text-2xl font-bold text-surface-900">{wpSite.dbSizeGB}GB</p>
+      <p class="text-xs text-surface-500 mt-1">{wpSite.dbType}</p>
     </div>
     <div class="glass rounded-2xl p-6">
       <p class="text-xs text-surface-500 font-semibold mb-2">캐시 히트율</p>
-      <p class="text-2xl font-bold text-white">{wpSite.cacheHitRate}%</p>
-      <p class="text-xs text-surface-400 mt-1">WP-Rocket</p>
+      <p class="text-2xl font-bold text-surface-900">{wpSite.cacheHitRate}%</p>
+      <p class="text-xs text-surface-500 mt-1">WP-Rocket</p>
     </div>
     <div class="glass rounded-2xl p-6">
       <p class="text-xs text-surface-500 font-semibold mb-2">테마</p>
-      <p class="text-xl font-bold text-white truncate">{wpSite.theme}</p>
-      <p class="text-xs text-surface-400 mt-1">활성</p>
+      <p class="text-xl font-bold text-surface-900 truncate">{wpSite.theme}</p>
+      <p class="text-xs text-surface-500 mt-1">활성</p>
     </div>
   </div>
 
@@ -82,24 +77,24 @@ const wpSite = {
 
   <!-- 관리자 정보 -->
   <section class="glass rounded-2xl p-6 mb-6">
-    <h2 class="text-xl font-semibold text-white mb-4">관리자 정보</h2>
+    <h2 class="text-xl font-semibold text-surface-900 mb-4">관리자 정보</h2>
     <form id="admin-form" class="space-y-4">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-surface-300 mb-2">로그인 ID</label>
-          <input type="text" value={wpSite.adminUser.login} disabled class="input-field bg-surface-800/50" />
+          <label class="block text-sm font-medium text-surface-700 mb-2">로그인 ID</label>
+          <input type="text" value={wpSite.adminUser.login} disabled class="input-field bg-surface-100" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-surface-300 mb-2">이메일</label>
+          <label class="block text-sm font-medium text-surface-700 mb-2">이메일</label>
           <input type="email" name="email" value={wpSite.adminUser.email} class="input-field" required />
         </div>
       </div>
       <div>
-        <label class="block text-sm font-medium text-surface-300 mb-2">표시 이름</label>
+        <label class="block text-sm font-medium text-surface-700 mb-2">표시 이름</label>
         <input type="text" name="displayName" value={wpSite.adminUser.displayName} class="input-field" />
       </div>
       <div>
-        <label class="block text-sm font-medium text-surface-300 mb-2">새 비밀번호 (변경 시만 입력)</label>
+        <label class="block text-sm font-medium text-surface-700 mb-2">새 비밀번호 (변경 시만 입력)</label>
         <input type="password" name="password" class="input-field" placeholder="최소 12자 권장" />
       </div>
       <button type="submit" class="btn-primary">정보 저장</button>
@@ -109,7 +104,7 @@ const wpSite = {
 
   <!-- 캐싱 설정 -->
   <section class="glass rounded-2xl p-6 mb-6">
-    <h2 class="text-xl font-semibold text-white mb-4">캐싱 설정</h2>
+    <h2 class="text-xl font-semibold text-surface-900 mb-4">캐싱 설정</h2>
     <form id="cache-form" class="space-y-4">
       <div class="space-y-3">
         <label class="flex items-center gap-3 cursor-pointer">
@@ -117,67 +112,67 @@ const wpSite = {
             type="checkbox" 
             name="wpRocketEnabled" 
             checked={wpSite.cacheSettings.wpRocketEnabled}
-            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+            class="w-4 h-4 rounded border-surface-300 bg-surface-100 text-brand-500"
           />
-          <span class="text-sm font-medium text-surface-300">WP-Rocket 캐싱 활성화</span>
+          <span class="text-sm font-medium text-surface-700">WP-Rocket 캐싱 활성화</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer">
           <input 
             type="checkbox" 
             name="cloudflarePageRuleEnabled" 
             checked={wpSite.cacheSettings.cloudflarePageRuleEnabled}
-            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+            class="w-4 h-4 rounded border-surface-300 bg-surface-100 text-brand-500"
           />
-          <span class="text-sm font-medium text-surface-300">Cloudflare 페이지 규칙 활성화</span>
+          <span class="text-sm font-medium text-surface-700">Cloudflare 페이지 규칙 활성화</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer">
           <input 
             type="checkbox" 
             name="minifyHTML" 
             checked={wpSite.cacheSettings.minifyHTML}
-            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+            class="w-4 h-4 rounded border-surface-300 bg-surface-100 text-brand-500"
           />
-          <span class="text-sm font-medium text-surface-300">HTML 최소화</span>
+          <span class="text-sm font-medium text-surface-700">HTML 최소화</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer">
           <input 
             type="checkbox" 
             name="minifyCSS" 
             checked={wpSite.cacheSettings.minifyCSS}
-            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+            class="w-4 h-4 rounded border-surface-300 bg-surface-100 text-brand-500"
           />
-          <span class="text-sm font-medium text-surface-300">CSS 최소화</span>
+          <span class="text-sm font-medium text-surface-700">CSS 최소화</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer">
           <input 
             type="checkbox" 
             name="minifyJS" 
             checked={wpSite.cacheSettings.minifyJS}
-            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+            class="w-4 h-4 rounded border-surface-300 bg-surface-100 text-brand-500"
           />
-          <span class="text-sm font-medium text-surface-300">JavaScript 최소화</span>
+          <span class="text-sm font-medium text-surface-700">JavaScript 최소화</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer">
           <input 
             type="checkbox" 
             name="lazyLoadImages" 
             checked={wpSite.cacheSettings.lazyLoadImages}
-            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+            class="w-4 h-4 rounded border-surface-300 bg-surface-100 text-brand-500"
           />
-          <span class="text-sm font-medium text-surface-300">이미지 지연 로딩</span>
+          <span class="text-sm font-medium text-surface-700">이미지 지연 로딩</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer">
           <input 
             type="checkbox" 
             name="criticalCSSEnabled" 
             checked={wpSite.cacheSettings.criticalCSSEnabled}
-            class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-brand-500"
+            class="w-4 h-4 rounded border-surface-300 bg-surface-100 text-brand-500"
           />
-          <span class="text-sm font-medium text-surface-300">중요 CSS 최적화</span>
+          <span class="text-sm font-medium text-surface-700">중요 CSS 최적화</span>
         </label>
       </div>
       <div>
-        <label class="block text-sm font-medium text-surface-300 mb-2">캐시 TTL (초)</label>
+        <label class="block text-sm font-medium text-surface-700 mb-2">캐시 TTL (초)</label>
         <input 
           type="number" 
           name="cacheTTL" 
@@ -195,23 +190,23 @@ const wpSite = {
 
   <!-- 마이그레이션 파일 업로드 -->
   <section class="glass rounded-2xl p-6 mb-6">
-    <h2 class="text-xl font-semibold text-white mb-4">마이그레이션 & 복원</h2>
-    <p class="text-sm text-surface-400 mb-6">다른 호스팅에서 WordPress 백업 또는 마이그레이션 파일을 업로드하여 이 WordPress 인스턴스로 데이터를 가져옵니다.</p>
+    <h2 class="text-xl font-semibold text-surface-900 mb-4">마이그레이션 & 복원</h2>
+    <p class="text-sm text-surface-500 mb-6">다른 호스팅에서 WordPress 백업 또는 마이그레이션 파일을 업로드하여 이 WordPress 인스턴스로 데이터를 가져옵니다.</p>
     
-    <div id="upload-area" class="border-2 border-dashed border-surface-700 rounded-xl p-8 text-center cursor-pointer hover:border-brand-500 transition-colors">
+    <div id="upload-area" class="border-2 border-dashed border-surface-300 rounded-xl p-8 text-center cursor-pointer hover:border-brand-500 transition-colors">
       <svg class="w-12 h-12 text-surface-500 mx-auto mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="17 8 12 3 7 8"/>
         <line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
-      <p class="text-sm font-medium text-surface-300 mb-1">클릭하여 파일 선택 또는 드래그 앤 드롭</p>
+      <p class="text-sm font-medium text-surface-700 mb-1">클릭하여 파일 선택 또는 드래그 앤 드롭</p>
       <p class="text-xs text-surface-500">지원 형식: .zip, .tar.gz, .sql, .json</p>
       <input type="file" id="migration-file" class="hidden" accept=".zip,.tar.gz,.sql,.json" />
     </div>
 
     <div id="upload-progress" class="hidden mt-4">
-      <p class="text-sm text-surface-300 mb-2">업로드 중...</p>
-      <div class="w-full bg-surface-800 rounded-full h-2">
+      <p class="text-sm text-surface-700 mb-2">업로드 중...</p>
+      <div class="w-full bg-surface-100 rounded-full h-2">
         <div id="progress-bar" class="bg-brand-500 h-2 rounded-full" style="width: 0%"></div>
       </div>
       <p id="progress-text" class="text-xs text-surface-500 mt-1">0%</p>
@@ -220,7 +215,7 @@ const wpSite = {
     <div id="upload-message" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
 
     <div id="migrations-list" class="mt-6">
-      <h3 class="text-sm font-semibold text-surface-300 mb-3">최근 마이그레이션</h3>
+      <h3 class="text-sm font-semibold text-surface-700 mb-3">최근 마이그레이션</h3>
       <div class="space-y-2">
         <p class="text-sm text-surface-500">마이그레이션 이력이 없습니다.</p>
       </div>
@@ -230,7 +225,7 @@ const wpSite = {
   <!-- 위험 구역 -->
   <section class="glass rounded-2xl p-6 border border-red-500/20">
     <h2 class="text-lg font-semibold text-red-400 mb-2">위험 구역</h2>
-    <p class="text-sm text-surface-400 mb-4">이 WordPress 인스턴스를 삭제하면 모든 데이터가 영구적으로 제거됩니다. 이 작업은 되돌릴 수 없습니다.</p>
+    <p class="text-sm text-surface-500 mb-4">이 WordPress 인스턴스를 삭제하면 모든 데이터가 영구적으로 제거됩니다. 이 작업은 되돌릴 수 없습니다.</p>
     <button id="delete-wp-btn" class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-500/10 text-red-400 font-medium rounded-lg border border-red-500/30 hover:bg-red-500/20 transition-colors">
       WordPress 인스턴스 삭제
     </button>

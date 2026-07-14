@@ -1,19 +1,66 @@
 ---
 // platform/src/pages/auth/callback.astro
 import { exchangeCodeForTokens, getCloudflareUser } from '@lib/cloudflare-oauth';
-import { createSessionCookie } from '@lib/session';
+import { createSessionCookie, parseOAuthStateCookie, clearOAuthStateCookie } from '@lib/session';
+
 const code = Astro.url.searchParams.get('code');
-if (!code) return Astro.redirect('/?error=no_code');
+const returnedState = Astro.url.searchParams.get('state');
+
+if (!code) return Astro.redirect('/login?error=no_code');
+
+// CSRF 방어: 로그인 시작 시 저장해둔 state와 콜백으로 돌아온 state가
+// 정확히 일치하는지 확인합니다. 하나라도 없거나 다르면 요청을 거부합니다.
+const pending = parseOAuthStateCookie(Astro.request.headers.get('cookie'));
+if (!pending || !returnedState || pending.state !== returnedState) {
+  return new Response(null, {
+    status: 302,
+    headers: { Location: '/login?error=auth_failed', 'Set-Cookie': clearOAuthStateCookie() },
+  });
+}
+
 try {
-  const tokens = await exchangeCodeForTokens(code);
+  // PKCE code_verifier를 함께 전달해 authorization code 가로채기 공격을 방어합니다.
+  const tokens = await exchangeCodeForTokens(code, pending.codeVerifier);
   const cfUser = await getCloudflareUser(tokens.access_token);
+
   const PLATFORM_API = import.meta.env.PLATFORM_API_URL || 'http://localhost:8787';
-  const response = await fetch(`${PLATFORM_API}/api/auth/callback`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ cfAccountId:cfUser.id, email:cfUser.email, username:cfUser.name||cfUser.email.split('@')[0], avatarUrl:cfUser.avatar_url, oauthToken:tokens.access_token, refreshToken:tokens.refresh_token||null, expiresAt:tokens.expires_in ? Math.floor(Date.now()/1000)+tokens.expires_in : null }) });
+  const response = await fetch(`${PLATFORM_API}/api/auth/callback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      cfAccountId: cfUser.sub,
+      email: cfUser.email,
+      username: cfUser.name || cfUser.email.split('@')[0],
+      avatarUrl: cfUser.picture || null,
+      oauthToken: tokens.access_token,
+      refreshToken: tokens.refresh_token || null,
+      expiresAt: tokens.expires_in ? Math.floor(Date.now() / 1000) + tokens.expires_in : null,
+    }),
+  });
   const result = await response.json();
+
   if (result.success && result.data) {
     const u = result.data;
-    return new Response(null, { status:302, headers:{ 'Location':'/dashboard', 'Set-Cookie': createSessionCookie({ userId:u.id, email:u.email, username:u.username, avatarUrl:u.avatar_url, cfAccountId:cfUser.id, cfToken:tokens.access_token }) } });
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: '/dashboard',
+        'Set-Cookie': [
+          createSessionCookie({
+            userId: u.id,
+            email: u.email,
+            username: u.username,
+            avatarUrl: u.avatar_url,
+            cfAccountId: cfUser.sub,
+            cfToken: tokens.access_token,
+          }),
+          clearOAuthStateCookie(),
+        ].join(', '),
+      },
+    });
   }
-  return Astro.redirect('/?error=auth_failed');
-} catch { return Astro.redirect('/?error=auth_failed'); }
+  return new Response(null, { status: 302, headers: { Location: '/login?error=auth_failed', 'Set-Cookie': clearOAuthStateCookie() } });
+} catch {
+  return new Response(null, { status: 302, headers: { Location: '/login?error=auth_failed', 'Set-Cookie': clearOAuthStateCookie() } });
+}
 ---

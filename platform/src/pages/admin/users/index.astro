@@ -14,7 +14,7 @@ interface AdminUser { id: string; email: string; username: string; avatar_url: s
 const usersResult = await apiClient.get<AdminUser[]>('/api/admin/users?limit=100', Astro.request.headers.get('cookie'));
 const users = usersResult.success ? usersResult.data : [];
 
-const statusStyles: Record<string, string> = { active: 'bg-green-500/10 text-green-400', suspended: 'bg-red-500/10 text-red-400' };
+const statusBadgeClass: Record<string, string> = { active: 'badge-success', suspended: 'badge-danger' };
 ---
 <AdminLayout title="사용자 관리" activeNav="users">
   <div class="mb-8 flex items-center justify-between flex-wrap gap-4">
@@ -44,7 +44,7 @@ const statusStyles: Record<string, string> = { active: 'bg-green-500/10 text-gre
               </div>
             </td>
             <td class="p-4 text-surface-400">{u.email}</td>
-            <td class="p-4"><span class:list={['px-2 py-1 text-xs font-medium rounded-full', statusStyles[u.status] || 'bg-surface-700 text-surface-300']}>{u.status}</span></td>
+            <td class="p-4"><span class:list={['badge', statusBadgeClass[u.status] || 'badge-neutral']}>{u.status}</span></td>
             <td class="p-4 text-surface-400">{new Date(u.created_at * 1000).toLocaleDateString('ko-KR')}</td>
           </tr>
         ))}

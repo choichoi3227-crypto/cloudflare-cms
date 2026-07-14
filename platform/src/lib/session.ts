@@ -41,3 +41,37 @@ export async function getSession(context: { request: Request }): Promise<Session
 export function createLogoutCookie(): string {
   return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
 }
+
+// --- Cloudflare OAuth PKCE / state 임시 쿠키 -----------------------------
+// authorization 요청 시 생성한 state와 PKCE code_verifier를 콜백 시점까지
+// 짧게 보관하기 위한 HttpOnly 쿠키입니다. CSRF 방어(state 일치 확인)와
+// 코드 가로채기 방어(PKCE code_verifier)를 위해 반드시 콜백에서 검증해야 합니다.
+const OAUTH_STATE_COOKIE_NAME = 'cp_oauth_state';
+
+export interface OAuthPendingState {
+  state: string;
+  codeVerifier: string;
+}
+
+export function createOAuthStateCookie(pending: OAuthPendingState): string {
+  const payload = btoa(JSON.stringify(pending));
+  // 인가 흐름은 보통 몇 분 안에 끝나므로 10분으로 짧게 제한합니다.
+  const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString();
+  return `${OAUTH_STATE_COOKIE_NAME}=${payload}; Path=/; HttpOnly; Secure; SameSite=Lax; Expires=${expires}`;
+}
+
+export function parseOAuthStateCookie(cookieHeader: string | null): OAuthPendingState | null {
+  if (!cookieHeader) return null;
+  const cookies = cookieHeader.split(';').reduce<Record<string, string>>((acc, c) => {
+    const [k, ...v] = c.trim().split('=');
+    if (k && v.length) acc[k] = v.join('=');
+    return acc;
+  }, {});
+  const raw = cookies[OAUTH_STATE_COOKIE_NAME];
+  if (!raw) return null;
+  try { return JSON.parse(atob(raw)) as OAuthPendingState; } catch { return null; }
+}
+
+export function clearOAuthStateCookie(): string {
+  return `${OAUTH_STATE_COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}

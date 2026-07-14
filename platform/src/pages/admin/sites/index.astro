@@ -14,11 +14,11 @@ interface AdminSite { id: string; user_id: string; site_name: string; domain: st
 const sitesResult = await apiClient.get<AdminSite[]>('/api/admin/sites?limit=100', Astro.request.headers.get('cookie'));
 const sites = sitesResult.success ? sitesResult.data : [];
 
-const statusStyles: Record<string, string> = {
-  active: 'bg-green-500/10 text-green-400',
-  provisioning: 'bg-yellow-500/10 text-yellow-400',
-  suspended: 'bg-orange-500/10 text-orange-400',
-  deleted: 'bg-red-500/10 text-red-400',
+const statusBadgeClass: Record<string, string> = {
+  active: 'badge-success',
+  provisioning: 'badge-warning',
+  suspended: 'badge-caution',
+  deleted: 'badge-danger',
 };
 ---
 <AdminLayout title="사이트 관리" activeNav="sites">
@@ -43,7 +43,7 @@ const statusStyles: Record<string, string> = {
           <tr class="border-t border-surface-800">
             <td class="p-4 font-medium text-white">{s.site_name}</td>
             <td class="p-4 text-surface-400">{s.domain}</td>
-            <td class="p-4"><span class:list={['px-2 py-1 text-xs font-medium rounded-full', statusStyles[s.status] || 'bg-surface-700 text-surface-300']}>{s.status}</span></td>
+            <td class="p-4"><span class:list={['badge', statusBadgeClass[s.status] || 'badge-neutral']}>{s.status}</span></td>
             <td class="p-4 text-surface-400 font-mono text-xs">{s.worker_id || '—'}</td>
             <td class="p-4 text-surface-400">{new Date(s.created_at * 1000).toLocaleDateString('ko-KR')}</td>
           </tr>

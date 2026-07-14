@@ -19,10 +19,10 @@ if (!siteResult.success || !siteResult.data) {
 const site = siteResult.data;
 
 const statusLabels: Record<string, { label: string; className: string }> = {
-  active: { label: '활성', className: 'bg-green-500/10 text-green-400' },
-  provisioning: { label: '준비 중', className: 'bg-yellow-500/10 text-yellow-400' },
-  suspended: { label: '일시 중지', className: 'bg-orange-500/10 text-orange-400' },
-  deleted: { label: '삭제됨', className: 'bg-red-500/10 text-red-400' },
+  active: { label: '활성', className: 'badge-success' },
+  provisioning: { label: '준비 중', className: 'badge-warning' },
+  suspended: { label: '일시 중지', className: 'badge-caution' },
+  deleted: { label: '삭제됨', className: 'badge-danger' },
 };
 const statusInfo = statusLabels[site.status] || statusLabels.provisioning;
 ---
@@ -36,7 +36,7 @@ const statusInfo = statusLabels[site.status] || statusLabels.provisioning;
       <div>
         <div class="flex items-center gap-3 mb-1">
           <h1 class="text-2xl font-bold text-white">{site.site_name}</h1>
-          <span class:list={['px-2 py-1 text-xs font-medium rounded-full', statusInfo.className]}>{statusInfo.label}</span>
+          <span class:list={['badge', statusInfo.className]}>{statusInfo.label}</span>
         </div>
         <p class="text-surface-400">{site.domain}</p>
       </div>
@@ -80,10 +80,10 @@ const statusInfo = statusLabels[site.status] || statusLabels.provisioning;
   <section class="glass rounded-xl p-6 border border-red-500/20">
     <h2 class="text-lg font-semibold text-red-400 mb-2">위험 구역</h2>
     <p class="text-sm text-surface-400 mb-4">호스팅을 삭제하면 도메인 라우팅이 해제되고 해당 사이트 정보가 더 이상 대시보드에 표시되지 않습니다. 이 작업은 되돌릴 수 없습니다.</p>
-    <button id="delete-hosting-btn" data-site-id={site.id} class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-500/10 text-red-400 font-medium rounded-lg border border-red-500/30 hover:bg-red-500/20 transition-colors">
+    <button id="delete-hosting-btn" data-site-id={site.id} class="btn-danger">
       호스팅 삭제
     </button>
-    <div id="delete-error" class="hidden mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400"></div>
+    <div id="delete-error" class="hidden mt-3 alert-error"></div>
   </section>
 </DashboardLayout>
 <script>

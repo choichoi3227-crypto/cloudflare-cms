@@ -1,9 +1,9 @@
 ---
 // platform/src/pages/admin/activity/index.astro
-import AdminLayout from '@layouts/AdminLayout.astro';
-import { parseSessionCookie } from '@lib/session';
-import { isAdminSession } from '@lib/admin';
-import { apiClient } from '@lib/api-client';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { parseSessionCookie } from '../../../lib/session';
+import { isAdminSession } from '../../../lib/admin';
+import { apiClient } from '../../../lib/api-client';
 
 const session = parseSessionCookie(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect('/auth/login');

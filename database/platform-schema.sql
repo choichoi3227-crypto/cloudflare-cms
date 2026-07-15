@@ -5,11 +5,47 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT NOT NULL UNIQUE,
     avatar_url TEXT,
     status TEXT NOT NULL DEFAULT 'active',
+    -- 이메일/비밀번호 인증 (auth_provider='email'일 때 필수)
+    password_hash TEXT,
+    auth_provider TEXT NOT NULL DEFAULT 'email', -- 'email' | 'google' | 'github'
+    email_verified INTEGER NOT NULL DEFAULT 0,
+    -- 추천인 코드: 본인이 발급받는 코드, 그리고 가입 시 입력한 추천인의 코드
+    referral_code TEXT,
+    referred_by_code TEXT,
+    -- 회원가입 시 사용자가 직접 입력하는 Cloudflare Global API 키
+    -- (워드프레스/호스팅/DNS 등 인프라 리소스 프로비저닝에 사용됨). AES-GCM으로 암호화 저장.
+    cf_global_api_key_encrypted TEXT,
+    cf_account_email TEXT, -- Global API 키와 짝을 이루는 Cloudflare 계정 이메일 (X-Auth-Email)
     created_at INTEGER NOT NULL DEFAULT (unixepoch()),
     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
+
+-- 이메일 인증 토큰
+CREATE TABLE IF NOT EXISTS email_verifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    consumed_at INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_user ON email_verifications(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_email_verifications_token_hash ON email_verifications(token_hash);
+
+-- 비밀번호 재설정 토큰 (이번 단계에서 스키마만 준비, 라우트는 이후 단계)
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    consumed_at INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_token_hash ON password_reset_tokens(token_hash);
 
 CREATE TABLE IF NOT EXISTS user_cloudflare_accounts (
     id TEXT PRIMARY KEY,
@@ -24,6 +60,22 @@ CREATE TABLE IF NOT EXISTS user_cloudflare_accounts (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_cf_accounts_cf_id ON user_cloudflare_accounts(cloudflare_account_id);
 CREATE INDEX IF NOT EXISTS idx_cf_accounts_user ON user_cloudflare_accounts(user_id);
+
+-- Google / GitHub 소셜 로그인 연동 (provider별 1계정 1레코드)
+CREATE TABLE IF NOT EXISTS user_social_accounts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL, -- 'google' | 'github'
+    provider_user_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    access_token TEXT,
+    refresh_token TEXT,
+    expires_at INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_social_accounts_provider_uid ON user_social_accounts(provider, provider_user_id);
+CREATE INDEX IF NOT EXISTS idx_social_accounts_user ON user_social_accounts(user_id);
 
 -- 신규: Google Blogger 연동 설정 테이블
 CREATE TABLE IF NOT EXISTS user_blogger_connections (

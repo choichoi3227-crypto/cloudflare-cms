@@ -5,11 +5,30 @@ export interface User {
   username: string;
   avatar_url: string | null;
   status: UserStatus;
+  auth_provider: AuthProvider;
+  email_verified: boolean;
+  referral_code: string | null;
+  referred_by_code: string | null;
+  cf_account_email: string | null;
   created_at: number;
   updated_at: number;
 }
 
-export type UserStatus = 'active' | 'suspended' | 'deleted';
+// 'pending_verification': 이메일 인증 전, 'pending_cf_key': 소셜 로그인 완료했으나 CF Global API 키 미입력,
+// 'active': 정상, 'suspended'/'deleted': 관리 상태
+export type UserStatus = 'pending_verification' | 'pending_cf_key' | 'active' | 'suspended' | 'deleted';
+
+export type AuthProvider = 'email' | 'google' | 'github' | 'cloudflare_oauth';
+
+export interface SocialAccount {
+  id: string;
+  user_id: string;
+  provider: 'google' | 'github';
+  provider_user_id: string;
+  email: string;
+  created_at: number;
+  updated_at: number;
+}
 
 export interface CloudflareAccount {
   id: string;

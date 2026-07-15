@@ -1,0 +1,68 @@
+---
+// platform/src/pages/auth/verify-email.astro
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { createSessionCookie } from '../../lib/session';
+
+const token = Astro.url.searchParams.get('token');
+const PLATFORM_API = import.meta.env.PLATFORM_API_URL || 'http://localhost:8787';
+
+let status: 'success' | 'error' = 'error';
+let errorMessage = '인증 토큰이 없습니다.';
+
+if (token) {
+  try {
+    const response = await fetch(`${PLATFORM_API}/api/auth/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const result = (await response.json()) as { success: boolean; data?: { user?: any }; error?: { message: string } };
+
+    if (result.success && result.data?.user) {
+      status = 'success';
+      const u = result.data.user;
+      Astro.response.headers.append(
+        'Set-Cookie',
+        createSessionCookie({
+          userId: u.id,
+          email: u.email,
+          username: u.username,
+          avatarUrl: u.avatar_url,
+          authProvider: u.auth_provider,
+        })
+      );
+    } else {
+      errorMessage = result.error?.message || '인증 링크가 유효하지 않거나 만료되었습니다.';
+    }
+  } catch {
+    errorMessage = '이메일 인증 처리 중 오류가 발생했습니다. 다시 시도해주세요.';
+  }
+}
+---
+<BaseLayout title="이메일 인증 - CloudPress" noIndex={true}>
+  <section class="section-padding">
+    <div class="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="glass rounded-2xl p-8 text-center">
+        {status === 'success' ? (
+          <>
+            <div class="w-14 h-14 mx-auto mb-6 bg-green-500/20 rounded-2xl flex items-center justify-center">
+              <svg class="w-8 h-8 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <h1 class="text-2xl font-bold text-white mb-2">이메일 인증 완료</h1>
+            <p class="text-sm text-surface-400 mb-8">회원가입이 완료되었습니다. CloudPress를 이용해보세요.</p>
+            <a href="/dashboard" class="btn-primary w-full">대시보드로 이동</a>
+          </>
+        ) : (
+          <>
+            <div class="w-14 h-14 mx-auto mb-6 bg-red-500/20 rounded-2xl flex items-center justify-center">
+              <svg class="w-8 h-8 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </div>
+            <h1 class="text-2xl font-bold text-white mb-2">인증 실패</h1>
+            <p class="text-sm text-surface-400 mb-8">{errorMessage}</p>
+            <a href="/auth/login" class="btn-secondary w-full">로그인 페이지로 이동</a>
+          </>
+        )}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

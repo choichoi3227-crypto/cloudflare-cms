@@ -1,0 +1,76 @@
+---
+// platform/src/pages/auth/social-callback.astro
+import {
+  exchangeSocialCodeForToken,
+  getSocialUserInfo,
+  type SocialProvider,
+} from '../../lib/social-oauth';
+import { createSessionCookie, parseOAuthStateCookie, clearOAuthStateCookie } from '../../lib/session';
+
+const code = Astro.url.searchParams.get('code');
+const returnedState = Astro.url.searchParams.get('state');
+
+if (!code) return Astro.redirect('/auth/login?error=no_code');
+
+const pending = parseOAuthStateCookie(Astro.request.headers.get('cookie'));
+if (!pending || !returnedState || pending.state !== returnedState || !pending.provider || pending.provider === 'cloudflare') {
+  return new Response(null, {
+    status: 302,
+    headers: { Location: '/auth/login?error=auth_failed', 'Set-Cookie': clearOAuthStateCookie() },
+  });
+}
+
+const provider = pending.provider as SocialProvider;
+const PLATFORM_API = import.meta.env.PLATFORM_API_URL || 'http://localhost:8787';
+
+try {
+  const tokens = await exchangeSocialCodeForToken(provider, code, pending.codeVerifier);
+  const socialUser = await getSocialUserInfo(provider, tokens.accessToken);
+
+  const response = await fetch(`${PLATFORM_API}/api/auth/social-callback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider,
+      providerUserId: socialUser.providerUserId,
+      email: socialUser.email,
+      name: socialUser.name,
+      avatarUrl: socialUser.avatarUrl,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresAt: tokens.expiresIn ? Math.floor(Date.now() / 1000) + tokens.expiresIn : null,
+    }),
+  });
+  const result = (await response.json()) as { success: boolean; data?: { user?: any }; error?: { message: string } };
+
+  if (result.success && result.data?.user) {
+    const u = result.data.user;
+    const sessionCookie = createSessionCookie({
+      userId: u.id,
+      email: u.email,
+      username: u.username,
+      avatarUrl: u.avatar_url,
+      authProvider: u.auth_provider,
+      status: u.status,
+    });
+    // CF Global API 키가 아직 없는 신규 소셜 가입자는 키 입력 페이지로,
+    // 이미 완료된 사용자(재로그인)는 바로 대시보드로 이동합니다.
+    const destination = u.status === 'pending_cf_key' ? '/auth/complete-signup' : '/dashboard';
+    return new Response(null, {
+      status: 302,
+      headers: { Location: destination, 'Set-Cookie': [sessionCookie, clearOAuthStateCookie()].join(', ') },
+    });
+  }
+
+  const errorMessage = result.error?.message ? encodeURIComponent(result.error.message) : '';
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `/auth/login?error=auth_failed${errorMessage ? `&message=${errorMessage}` : ''}`,
+      'Set-Cookie': clearOAuthStateCookie(),
+    },
+  });
+} catch {
+  return new Response(null, { status: 302, headers: { Location: '/auth/login?error=auth_failed', 'Set-Cookie': clearOAuthStateCookie() } });
+}
+---

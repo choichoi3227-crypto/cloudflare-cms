@@ -20,6 +20,11 @@ export const POST: APIRoute = async ({ request }) => {
     const body = await request.json() as { siteName: string; domain: string };
     const err = validateSiteCreation(body);
     if (err) return new Response(JSON.stringify({ success:false, error:{code:'VALIDATION_ERROR',message:err} }), { status:400, headers:{'Content-Type':'application/json'} });
+    // 이메일/소셜 가입 사용자는 Cloudflare OAuth 토큰이 없고 대신 Global API 키를 사용합니다.
+    // Global API 키 기반 프로비저닝 연동은 별도 단계에서 처리되며, 여기서는 기존 OAuth 세션만 지원합니다.
+    if (!session.cfToken || !session.cfAccountId) {
+      return new Response(JSON.stringify({ success:false, error:{code:'CF_OAUTH_REQUIRED',message:'현재 이 기능은 Cloudflare 계정으로 로그인한 사용자만 이용할 수 있습니다.'} }), { status:400, headers:{'Content-Type':'application/json'} });
+    }
     const r = await fetch(`${PLATFORM_API}/api/sites`, { method:'POST', headers:{'Content-Type':'application/json','X-User-Id':session.userId,'X-CF-Token':session.cfToken,'X-CF-Account-Id':session.cfAccountId}, body:JSON.stringify({site_name:body.siteName,domain:body.domain}) });
     return new Response(await r.text(), { status:r.status, headers:{'Content-Type':'application/json'} });
   } catch { return new Response(JSON.stringify({ success:false, error:{code:'INTERNAL_ERROR',message:'서버 오류'} }), { status:500, headers:{'Content-Type':'application/json'} }); }

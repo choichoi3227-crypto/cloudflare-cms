@@ -1,0 +1,96 @@
+---
+// platform/src/pages/auth/complete-signup.astro
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { parseSessionCookie } from '../../lib/session';
+
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect('/auth/login');
+
+const prefilledReferral = Astro.url.searchParams.get('ref') || '';
+---
+<BaseLayout title="가입 완료 - CloudPress" description="Cloudflare Global API 키를 등록하여 가입을 완료하세요." noIndex={true}>
+  <section class="section-padding">
+    <div class="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="glass rounded-2xl p-8">
+        <div class="text-center mb-8">
+          <div class="w-14 h-14 mx-auto mb-6 bg-brand-500 rounded-2xl flex items-center justify-center">
+            <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h1 class="text-2xl font-bold text-white mb-2">가입을 거의 완료했어요</h1>
+          <p class="text-sm text-surface-400">마지막 단계로, 워드프레스 호스팅/DNS 등 인프라 리소스 생성에 사용될 Cloudflare Global API 키를 등록해주세요.</p>
+        </div>
+
+        <div id="form-error" class="alert-error mb-6 text-left hidden"></div>
+
+        <form id="cf-key-form" class="space-y-4">
+          <div>
+            <label for="cfAccountEmail" class="label-field">Cloudflare 계정 이메일</label>
+            <input type="email" id="cfAccountEmail" name="cfAccountEmail" required class="input-field" placeholder="Cloudflare 대시보드 로그인 이메일" />
+          </div>
+          <div>
+            <label for="cfGlobalApiKey" class="label-field">Cloudflare Global API 키</label>
+            <input type="password" id="cfGlobalApiKey" name="cfGlobalApiKey" required class="input-field" placeholder="Cloudflare Global API Key" />
+            <p class="text-xs text-surface-500 mt-1">
+              Cloudflare 대시보드 &gt; 프로필 &gt; API 토큰에서 확인할 수 있습니다.
+            </p>
+          </div>
+          <div>
+            <label for="referredByCode" class="label-field">추천인 코드 (선택)</label>
+            <input type="text" id="referredByCode" name="referredByCode" class="input-field" placeholder="추천인 코드가 있다면 입력해주세요" value={prefilledReferral} />
+          </div>
+          <button type="submit" id="submit-btn" class="btn-primary w-full mt-2">가입 완료하기</button>
+        </form>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+<script>
+  const form = document.getElementById('cf-key-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const errorBox = document.getElementById('form-error') as HTMLDivElement;
+
+  function fieldLabel(field: string): string {
+    const map: Record<string, string> = { cfAccountEmail: 'Cloudflare 계정 이메일', cfGlobalApiKey: 'Cloudflare Global API 키', referredByCode: '추천인 코드' };
+    return map[field] || field;
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-70', 'pointer-events-none');
+
+    const payload = {
+      cfAccountEmail: (document.getElementById('cfAccountEmail') as HTMLInputElement).value,
+      cfGlobalApiKey: (document.getElementById('cfGlobalApiKey') as HTMLInputElement).value,
+      referredByCode: (document.getElementById('referredByCode') as HTMLInputElement).value || null,
+    };
+
+    try {
+      const res = await fetch('/api/auth/complete-cf-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+      if (result.success) {
+        window.location.href = '/dashboard';
+        return;
+      }
+      if (result.error?.details) {
+        const messages = Object.entries(result.error.details as Record<string, string[]>)
+          .map(([field, msgs]) => `${fieldLabel(field)}: ${msgs.join(' ')}`);
+        errorBox.innerHTML = messages.join('<br />');
+      } else {
+        errorBox.textContent = result.error?.message || 'Cloudflare API 키 등록에 실패했습니다.';
+      }
+      errorBox.classList.remove('hidden');
+    } catch {
+      errorBox.textContent = '네트워크 오류가 발생했습니다. 다시 시도해주세요.';
+      errorBox.classList.remove('hidden');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('opacity-70', 'pointer-events-none');
+    }
+  });
+</script>

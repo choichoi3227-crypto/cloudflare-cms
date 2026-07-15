@@ -5,6 +5,17 @@
 CLOUDFLARE_OAUTH_CLIENT_ID=
 CLOUDFLARE_OAUTH_CLIENT_SECRET=
 CLOUDFLARE_OAUTH_REDIRECT_URI=http://localhost:4321/auth/callback
+
+# Google OAuth (Google Cloud Console > API 및 서비스 > 사용자 인증 정보에서 발급)
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:4321/auth/social-callback
+
+# GitHub OAuth (GitHub > Settings > Developer settings > OAuth Apps에서 발급)
+GITHUB_OAUTH_CLIENT_ID=
+GITHUB_OAUTH_CLIENT_SECRET=
+GITHUB_OAUTH_REDIRECT_URI=http://localhost:4321/auth/social-callback
+
 PLATFORM_API_URL=http://localhost:8787
 ADMIN_EMAILS=you@example.com
 AI_GATEWAY_URL=http://localhost:8788

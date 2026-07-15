@@ -5,6 +5,7 @@ import { parseSessionCookie } from '../../lib/session';
 import { apiClient } from '../../lib/api-client';
 const session = parseSessionCookie(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect('/auth/login');
+if (session.status === 'pending_cf_key') return Astro.redirect('/auth/complete-signup');
 Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
 const sitesResult = await apiClient.get<Array<{ id: string; site_name: string; domain: string; status: string; created_at: number }>>('/api/sites', Astro.request.headers.get('cookie'));
 const sites = sitesResult.success ? sitesResult.data : [];

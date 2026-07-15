@@ -8,40 +8,100 @@ const session = parseSessionCookie(Astro.request.headers.get('cookie'));
 if (session) return Astro.redirect('/dashboard');
 
 const errorParam = Astro.url.searchParams.get('error');
+const messageParam = Astro.url.searchParams.get('message');
 const errorMessages: Record<string, string> = {
-  no_code: 'Cloudflare 인증 코드를 받지 못했습니다. 다시 시도해주세요.',
-  auth_failed: 'Cloudflare 로그인에 실패했습니다. 다시 시도해주세요.',
+  no_code: '소셜 로그인 인증 코드를 받지 못했습니다. 다시 시도해주세요.',
+  auth_failed: messageParam ? decodeURIComponent(messageParam) : '소셜 로그인에 실패했습니다. 다시 시도해주세요.',
 };
-const errorMessage = errorParam ? (errorMessages[errorParam] || '로그인 중 오류가 발생했습니다. 다시 시도해주세요.') : null;
+const queryErrorMessage = errorParam ? (errorMessages[errorParam] || '로그인 중 오류가 발생했습니다. 다시 시도해주세요.') : null;
 ---
-<BaseLayout title="로그인 - CloudPress" description="Cloudflare 계정으로 CloudPress에 로그인하세요." noIndex={true}>
+<BaseLayout title="로그인 - CloudPress" description="이메일 또는 소셜 계정으로 CloudPress에 로그인하세요." noIndex={true}>
   <section class="section-padding">
     <div class="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="glass rounded-2xl p-8 text-center">
-        <div class="w-14 h-14 mx-auto mb-6 bg-brand-500 rounded-2xl flex items-center justify-center">
-          <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      <div class="glass rounded-2xl p-8">
+        <div class="text-center mb-8">
+          <div class="w-14 h-14 mx-auto mb-6 bg-brand-500 rounded-2xl flex items-center justify-center">
+            <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h1 class="text-2xl font-bold text-white mb-2">CloudPress 로그인</h1>
+          <p class="text-sm text-surface-400">이메일 또는 소셜 계정으로 로그인하세요.</p>
         </div>
-        <h1 class="text-2xl font-bold text-white mb-2">CloudPress 로그인</h1>
-        <p class="text-sm text-surface-400 mb-8">Cloudflare 계정으로 안전하게 로그인하세요. 별도의 회원가입이나 비밀번호가 필요하지 않습니다.</p>
 
-        {errorMessage && (
-          <div class="alert-error mb-6 text-left">{errorMessage}</div>
+        {queryErrorMessage && (
+          <div class="alert-error mb-6 text-left">{queryErrorMessage}</div>
         )}
+        <div id="form-error" class="alert-error mb-6 text-left hidden"></div>
 
-        <a href="/api/auth/login" id="cf-login-btn" class="btn-primary w-full">
-          <svg class="w-5 h-5" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M25.3 16.6c-.1-4-3.3-7.2-7.3-7.2-3 0-5.6 1.8-6.7 4.4-.4-.2-.9-.3-1.4-.3-1.8 0-3.3 1.4-3.4 3.2C4.6 17.1 3 18.8 3 20.9 3 23.2 4.8 25 7.1 25h17.6c2 0 3.6-1.6 3.6-3.6.1-2-1.4-3.7-3-4.8z"/></svg>
-          Cloudflare 계정으로 로그인
-        </a>
+        <form id="login-form" class="space-y-4">
+          <div>
+            <label for="email" class="label-field">이메일</label>
+            <input type="email" id="email" name="email" required class="input-field" placeholder="you@example.com" />
+          </div>
+          <div>
+            <label for="password" class="label-field">비밀번호</label>
+            <input type="password" id="password" name="password" required class="input-field" placeholder="••••••••" />
+          </div>
+          <button type="submit" id="submit-btn" class="btn-primary w-full">로그인</button>
+        </form>
 
-        <p class="text-xs text-surface-600 mt-6">로그인 시 CloudPress의 <a href="/이용약관" class="underline hover:text-surface-400">이용약관</a> 및 <a href="/개인정보처리방침" class="underline hover:text-surface-400">개인정보처리방침</a>에 동의하는 것으로 간주됩니다.</p>
+        <div class="flex items-center gap-3 my-6">
+          <div class="h-px flex-1 bg-surface-700"></div>
+          <span class="text-xs text-surface-500">또는</span>
+          <div class="h-px flex-1 bg-surface-700"></div>
+        </div>
+
+        <div class="space-y-3">
+          <a href="/api/auth/google" class="btn-secondary w-full flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Google로 계속하기
+          </a>
+          <a href="/api/auth/github" class="btn-secondary w-full flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55 0-.27-.01-1.16-.02-2.1-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.24 2.76.12 3.05.74.8 1.19 1.83 1.19 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .3.2.66.79.55A10.52 10.52 0 0 0 23.5 12c0-6.35-5.15-11.5-11.5-11.5z"/></svg>
+            GitHub로 계속하기
+          </a>
+        </div>
+
+        <p class="text-center text-sm text-surface-400 mt-6">
+          아직 계정이 없으신가요? <a href="/auth/register" class="text-brand-500 hover:underline">회원가입</a>
+        </p>
+        <p class="text-xs text-surface-600 mt-6 text-center">로그인 시 CloudPress의 <a href="/이용약관" class="underline hover:text-surface-400">이용약관</a> 및 <a href="/개인정보처리방침" class="underline hover:text-surface-400">개인정보처리방침</a>에 동의하는 것으로 간주됩니다.</p>
       </div>
     </div>
   </section>
 </BaseLayout>
 <script>
-  // JS가 활성화된 경우 버튼 텍스트가 잠깐 로딩 상태로 바뀌도록 처리 (링크 자체는 서버에서 리다이렉트 처리)
-  const btn = document.getElementById('cf-login-btn');
-  btn?.addEventListener('click', () => {
-    btn.classList.add('opacity-70', 'pointer-events-none');
+  const form = document.getElementById('login-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const errorBox = document.getElementById('form-error') as HTMLDivElement;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-70', 'pointer-events-none');
+
+    const email = (document.getElementById('email') as HTMLInputElement).value;
+    const password = (document.getElementById('password') as HTMLInputElement).value;
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        window.location.href = '/dashboard';
+        return;
+      }
+      errorBox.textContent = result.error?.message || '로그인에 실패했습니다.';
+      errorBox.classList.remove('hidden');
+    } catch {
+      errorBox.textContent = '네트워크 오류가 발생했습니다. 다시 시도해주세요.';
+      errorBox.classList.remove('hidden');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('opacity-70', 'pointer-events-none');
+    }
   });
 </script>

@@ -17,6 +17,13 @@ if (!pending || !returnedState || pending.state !== returnedState) {
     headers: { Location: '/login?error=auth_failed', 'Set-Cookie': clearOAuthStateCookie() },
   });
 }
+// 이 콜백 페이지는 Cloudflare OAuth 전용입니다. Google/GitHub는 /auth/social-callback에서 처리됩니다.
+if (pending.provider && pending.provider !== 'cloudflare') {
+  return new Response(null, {
+    status: 302,
+    headers: { Location: '/login?error=auth_failed', 'Set-Cookie': clearOAuthStateCookie() },
+  });
+}
 
 try {
   // PKCE code_verifier를 함께 전달해 authorization code 가로채기 공격을 방어합니다.

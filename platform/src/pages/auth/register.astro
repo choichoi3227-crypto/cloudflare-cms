@@ -1,0 +1,135 @@
+---
+// platform/src/pages/auth/register.astro
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { parseSessionCookie } from '../../lib/session';
+
+const session = parseSessionCookie(Astro.request.headers.get('cookie'));
+if (session) return Astro.redirect('/dashboard');
+
+const prefilledReferral = Astro.url.searchParams.get('ref') || '';
+---
+<BaseLayout title="회원가입 - CloudPress" description="CloudPress에 가입하고 서버리스 워드프레스 호스팅을 시작하세요." noIndex={true}>
+  <section class="section-padding">
+    <div class="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="glass rounded-2xl p-8">
+        <div class="text-center mb-8">
+          <div class="w-14 h-14 mx-auto mb-6 bg-brand-500 rounded-2xl flex items-center justify-center">
+            <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h1 class="text-2xl font-bold text-white mb-2">CloudPress 회원가입</h1>
+          <p class="text-sm text-surface-400">가입 후 이메일 인증을 완료하면 바로 이용하실 수 있습니다.</p>
+        </div>
+
+        <div id="form-error" class="alert-error mb-6 text-left hidden"></div>
+        <div id="form-success" class="hidden text-center py-6">
+          <div class="w-12 h-12 mx-auto mb-4 bg-green-500/20 rounded-full flex items-center justify-center">
+            <svg class="w-6 h-6 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <h2 class="text-lg font-semibold text-white mb-2">인증 메일을 발송했습니다</h2>
+          <p class="text-sm text-surface-400">입력하신 이메일의 받은 편지함을 확인하여 인증을 완료해주세요.<br />인증 후 로그인하실 수 있습니다.</p>
+          <a href="/auth/login" class="btn-primary inline-block mt-6">로그인 페이지로 이동</a>
+        </div>
+
+        <form id="register-form" class="space-y-4">
+          <div>
+            <label for="username" class="label-field">닉네임</label>
+            <input type="text" id="username" name="username" required minlength="2" class="input-field" placeholder="닉네임" />
+          </div>
+          <div>
+            <label for="email" class="label-field">이메일</label>
+            <input type="email" id="email" name="email" required class="input-field" placeholder="you@example.com" />
+          </div>
+          <div>
+            <label for="password" class="label-field">비밀번호</label>
+            <input type="password" id="password" name="password" required minlength="8" class="input-field" placeholder="8자 이상" />
+          </div>
+
+          <div class="pt-2 border-t border-surface-700">
+            <label for="cfAccountEmail" class="label-field mt-4">Cloudflare 계정 이메일</label>
+            <input type="email" id="cfAccountEmail" name="cfAccountEmail" required class="input-field" placeholder="Cloudflare 대시보드 로그인 이메일" />
+          </div>
+          <div>
+            <label for="cfGlobalApiKey" class="label-field">Cloudflare Global API 키</label>
+            <input type="password" id="cfGlobalApiKey" name="cfGlobalApiKey" required class="input-field" placeholder="Cloudflare Global API Key" />
+            <p class="text-xs text-surface-500 mt-1">
+              워드프레스 호스팅, DNS 등 인프라 리소스 생성에 사용됩니다. Cloudflare 대시보드 &gt; 프로필 &gt; API 토큰에서 확인할 수 있습니다.
+            </p>
+          </div>
+
+          <div>
+            <label for="referredByCode" class="label-field">추천인 코드 (선택)</label>
+            <input type="text" id="referredByCode" name="referredByCode" class="input-field" placeholder="추천인 코드가 있다면 입력해주세요" value={prefilledReferral} />
+          </div>
+
+          <button type="submit" id="submit-btn" class="btn-primary w-full mt-2">회원가입</button>
+        </form>
+
+        <p id="login-link" class="text-center text-sm text-surface-400 mt-6">
+          이미 계정이 있으신가요? <a href="/auth/login" class="text-brand-500 hover:underline">로그인</a>
+        </p>
+        <p class="text-xs text-surface-600 mt-6 text-center">가입 시 CloudPress의 <a href="/이용약관" class="underline hover:text-surface-400">이용약관</a> 및 <a href="/개인정보처리방침" class="underline hover:text-surface-400">개인정보처리방침</a>에 동의하는 것으로 간주됩니다.</p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+<script>
+  const form = document.getElementById('register-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const errorBox = document.getElementById('form-error') as HTMLDivElement;
+  const successBox = document.getElementById('form-success') as HTMLDivElement;
+  const loginLink = document.getElementById('login-link') as HTMLParagraphElement;
+
+  function fieldLabel(field: string): string {
+    const map: Record<string, string> = {
+      email: '이메일', username: '닉네임', password: '비밀번호',
+      cfAccountEmail: 'Cloudflare 계정 이메일', cfGlobalApiKey: 'Cloudflare Global API 키',
+      referredByCode: '추천인 코드',
+    };
+    return map[field] || field;
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-70', 'pointer-events-none');
+
+    const payload = {
+      username: (document.getElementById('username') as HTMLInputElement).value,
+      email: (document.getElementById('email') as HTMLInputElement).value,
+      password: (document.getElementById('password') as HTMLInputElement).value,
+      cfAccountEmail: (document.getElementById('cfAccountEmail') as HTMLInputElement).value,
+      cfGlobalApiKey: (document.getElementById('cfGlobalApiKey') as HTMLInputElement).value,
+      referredByCode: (document.getElementById('referredByCode') as HTMLInputElement).value || null,
+    };
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+      if (result.success) {
+        form.classList.add('hidden');
+        loginLink.classList.add('hidden');
+        successBox.classList.remove('hidden');
+        return;
+      }
+      if (result.error?.details) {
+        const messages = Object.entries(result.error.details as Record<string, string[]>)
+          .map(([field, msgs]) => `${fieldLabel(field)}: ${msgs.join(' ')}`);
+        errorBox.innerHTML = messages.join('<br />');
+      } else {
+        errorBox.textContent = result.error?.message || '회원가입에 실패했습니다.';
+      }
+      errorBox.classList.remove('hidden');
+    } catch {
+      errorBox.textContent = '네트워크 오류가 발생했습니다. 다시 시도해주세요.';
+      errorBox.classList.remove('hidden');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('opacity-70', 'pointer-events-none');
+    }
+  });
+</script>

@@ -1,6 +1,6 @@
 // workers/platform-api/src/router.ts
 import type { Env } from './types';
-import { handleAuthCallback } from './routes/auth';
+import { handleAuthCallback, handleRegister, handleVerifyEmail, handleResendVerification, handleLogin, handleSocialCallback, handleCompleteCfKeySetup } from './routes/auth';
 import { handleListSites, handleCreateSite, handleGetSite, handleDeleteSite } from './routes/sites';
 import { handleAdminOverview, handleAdminListUsers, handleAdminListSites, handleAdminListActivity } from './routes/admin';
 import { corsHeaders, handleCors } from './middleware/cors';
@@ -9,6 +9,12 @@ import { rateLimit } from './middleware/rate-limit';
 function matchRoute(pathname: string, method: string) {
   const routes: Array<{ method:string; pattern:string; handler:(req:Request,env:Env,params:Record<string,string>)=>Promise<Response> }> = [
     { method:'POST', pattern:'/api/auth/callback', handler:async(req,env) => handleAuthCallback(req,env) },
+    { method:'POST', pattern:'/api/auth/register', handler:async(req,env) => handleRegister(req,env) },
+    { method:'POST', pattern:'/api/auth/verify-email', handler:async(req,env) => handleVerifyEmail(req,env) },
+    { method:'POST', pattern:'/api/auth/resend-verification', handler:async(req,env) => handleResendVerification(req,env) },
+    { method:'POST', pattern:'/api/auth/login', handler:async(req,env) => handleLogin(req,env) },
+    { method:'POST', pattern:'/api/auth/social-callback', handler:async(req,env) => handleSocialCallback(req,env) },
+    { method:'POST', pattern:'/api/auth/complete-cf-key', handler:async(req,env) => handleCompleteCfKeySetup(req,env) },
     { method:'GET', pattern:'/api/sites', handler:async(req,env) => handleListSites(req,env) },
     { method:'POST', pattern:'/api/sites', handler:async(req,env) => handleCreateSite(req,env) },
     { method:'GET', pattern:'/api/sites/:id', handler:async(req,env,p) => handleGetSite(req,env,p.id) },

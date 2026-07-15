@@ -15,3 +15,12 @@ id = "e4858ee03ee4456989ca1cfcd3746a93"
 
 [vars]
 ENVIRONMENT = "production"
+# 이메일 인증 링크 생성 시 사용하는 프론트엔드 베이스 URL
+PUBLIC_SITE_URL = "https://cloud-press.co.kr"
+
+# --- 아래 값들은 시크릿이므로 wrangler.toml에 직접 넣지 않고
+#     `wrangler secret put <NAME>` 명령으로 설정해야 합니다:
+#   ENCRYPTION_SECRET   - Cloudflare Global API 키 등 민감정보 암호화용 (32바이트 이상 랜덤 문자열 권장)
+#   RESEND_API_KEY      - Resend(https://resend.com) API 키
+#   RESEND_FROM_EMAIL   - 발신 이메일 주소, 예: "CloudPress <noreply@cloud-press.co.kr>"
+#                         (Resend에 도메인 인증이 완료된 주소여야 발송이 성공합니다)

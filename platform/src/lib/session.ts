@@ -2,7 +2,14 @@
 import { isAdminEmail } from './admin';
 
 export interface SessionData {
-  userId: string; email: string; username: string; avatarUrl: string | null; cfAccountId: string; cfToken: string;
+  userId: string; email: string; username: string; avatarUrl: string | null;
+  // Cloudflare OAuth로 가입한 사용자에게만 존재합니다 (기존 로그인 방식).
+  // 이메일/비밀번호 또는 소셜(Google/GitHub) 가입 사용자는 이 값이 없습니다.
+  cfAccountId?: string; cfToken?: string;
+  authProvider?: 'email' | 'google' | 'github' | 'cloudflare_oauth';
+  // 'pending_cf_key'인 사용자는 Cloudflare Global API 키 등록을 아직 완료하지 않은
+  // 소셜 로그인 신규 가입자입니다 (/auth/complete-signup으로 안내해야 합니다).
+  status?: 'pending_verification' | 'pending_cf_key' | 'active' | 'suspended' | 'deleted';
   role?: 'admin' | 'user';
 }
 
@@ -51,6 +58,8 @@ const OAUTH_STATE_COOKIE_NAME = 'cp_oauth_state';
 export interface OAuthPendingState {
   state: string;
   codeVerifier: string;
+  // 어떤 provider의 인가 흐름인지 구분합니다 ('cloudflare'가 기본값 — 기존 흐름과의 하위호환 유지)
+  provider?: 'cloudflare' | 'google' | 'github';
 }
 
 export function createOAuthStateCookie(pending: OAuthPendingState): string {

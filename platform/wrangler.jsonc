@@ -1,5 +1,5 @@
 {
-  "name": "cloudpress-platform",
+  "name": "platform",
   "main": "./dist/_worker.js/index.js",
   "compatibility_date": "2026-07-12",
   "compatibility_flags": ["nodejs_compat"],

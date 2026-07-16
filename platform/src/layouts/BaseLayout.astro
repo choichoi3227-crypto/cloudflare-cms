@@ -1,7 +1,7 @@
 ---
 // platform/src/layouts/BaseLayout.astro
-interface Props { title: string; description?: string; ogImage?: string; noIndex?: boolean; }
-const { title, description = 'CloudPress - Cloudflare 기반 서버리스 WordPress 호스팅. 서버 없이, PHP-WASM으로 Edge에서 진짜 워드프레스를 운영하세요.', ogImage = '/og-image.png', noIndex = false } = Astro.props;
+interface Props { title?: string; description?: string; ogImage?: string; noIndex?: boolean; }
+const { title = 'CloudPress', description = 'CloudPress - Cloudflare 기반 서버리스 WordPress 호스팅. 서버 없이, PHP-WASM으로 Edge에서 진짜 워드프레스를 운영하세요.', ogImage = '/og-image.png', noIndex = false } = Astro.props;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
 ---
 <!DOCTYPE html>
@@ -43,7 +43,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
             <a href="/docs" class="btn-ghost text-sm">문서</a>
           </div>
           <div class="flex items-center gap-3">
-            <a href="/dashboard" class="btn-primary text-sm">무료로 시작하기</a>
+            <a href="/products" class="btn-primary text-sm">플랜 보기</a>
           </div>
         </div>
       </div>

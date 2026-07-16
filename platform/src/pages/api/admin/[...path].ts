@@ -29,3 +29,22 @@ export const GET: APIRoute = async ({ request, params, url }) => {
     return new Response(JSON.stringify({ success: false, error: { code: 'INTERNAL_ERROR', message: '서버 오류' } }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 };
+
+export const POST: APIRoute = async ({ request, params }) => {
+  const session = parseSessionCookie(request.headers.get('cookie'));
+  if (!session) return unauthorized();
+  if (!isAdminSession(session)) return forbidden();
+
+  const subPath = (params.path as string | undefined) || '';
+  try {
+    const body = await request.text();
+    const r = await fetch(`${PLATFORM_API}/api/admin/${subPath}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': session.userId, 'X-Admin-Verified': '1' },
+      body,
+    });
+    return new Response(await r.text(), { status: r.status, headers: { 'Content-Type': 'application/json' } });
+  } catch {
+    return new Response(JSON.stringify({ success: false, error: { code: 'INTERNAL_ERROR', message: '서버 오류' } }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+};

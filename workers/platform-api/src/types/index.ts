@@ -9,7 +9,9 @@ export interface Env {
   RESEND_API_KEY: string;
   RESEND_FROM_EMAIL: string; // 예: "CloudPress <noreply@cloud-press.co.kr>"
   PUBLIC_SITE_URL: string; // 예: https://cloud-press.co.kr (인증 링크 생성용)
+  PAYPAL_CLIENT_ID?: string;
+  PAYPAL_CLIENT_SECRET?: string;
+  PAYPAL_API_BASE_URL?: string;
 }
-export interface AuthenticatedRequest extends Request { userId: string; cfToken: string; cfAccountId: string; }
+export interface AuthenticatedRequest extends Request { userId: string; }
 export interface SiteCreateInput { site_name: string; domain: string; }
-export interface OAuthCallbackInput { cfAccountId: string; email: string; username: string; avatarUrl: string | null; oauthToken: string; refreshToken: string | null; expiresAt: number | null; }

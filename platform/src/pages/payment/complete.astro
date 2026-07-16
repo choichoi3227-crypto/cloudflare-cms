@@ -1,0 +1,38 @@
+---
+import PublicLayout from '../../layouts/PublicLayout.astro';
+const paymentStatus = Astro.url.searchParams.get('status');
+const token = Astro.url.searchParams.get('token');
+const billing = Astro.url.searchParams.get('billing');
+---
+<PublicLayout title="결제 확인">
+  <main class="min-h-screen bg-surface-950 text-white flex items-center justify-center p-6">
+    <div id="payment-modal" class="bg-white text-surface-900 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+      <h1 id="modal-title" class="text-2xl font-bold mb-4">결제 확인 중...</h1>
+      <p id="modal-desc" class="text-sm text-surface-600 mb-6">PayPal 결제 결과를 확인하고 있습니다.</p>
+      <button id="modal-action" class="bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-5 rounded-lg">확인하기</button>
+    </div>
+  </main>
+</PublicLayout>
+<script define:vars={{ paymentStatus, token, billing }}>
+  const title = document.getElementById('modal-title');
+  const desc = document.getElementById('modal-desc');
+  const action = document.getElementById('modal-action');
+  async function complete() {
+    if (paymentStatus === 'success' && token) {
+      const response = await fetch('/api/payments?action=capture', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paypalOrderId: token }) });
+      const result = await response.json();
+      if (result.success) {
+        title.textContent = '결제 완료!';
+        desc.textContent = '호스팅 생성 준비가 완료되었습니다.';
+        action.textContent = '호스팅 확인하기';
+        action.onclick = () => { window.location.href = '/dashboard/sites/create'; };
+        return;
+      }
+    }
+    title.textContent = '결제 실패';
+    desc.textContent = billing ? `청구번호 ${billing} 결제가 완료되지 않았습니다.` : '결제가 완료되지 않았습니다.';
+    action.textContent = '확인하기';
+    action.onclick = () => { history.length > 1 ? history.back() : window.location.href = '/products'; };
+  }
+  complete();
+</script>

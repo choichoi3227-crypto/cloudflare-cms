@@ -12,7 +12,7 @@ Astro.locals.user = { id: session.userId, email: session.email, username: sessio
 
 interface AdminUser { id: string; email: string; username: string; avatar_url: string | null; status: string; created_at: number; updated_at: number; }
 const usersResult = await apiClient.get<AdminUser[]>('/api/admin/users?limit=100', Astro.request.headers.get('cookie'));
-const users = usersResult.success ? usersResult.data : [];
+const users = usersResult.success ? (usersResult.data ?? []) : [];
 
 const statusBadgeClass: Record<string, string> = { active: 'badge-success', suspended: 'badge-danger' };
 ---

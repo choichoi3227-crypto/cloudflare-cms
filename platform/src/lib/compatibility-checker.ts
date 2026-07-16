@@ -75,11 +75,11 @@ export class WordPressCompatibilityChecker {
   private async checkGitHubAPIAccess() {
     try {
       const response = await fetch('https://api.github.com/rate_limit');
-      const data = await response.json();
+      const data = (await response.json()) as any;
 
       return {
         name: 'GitHub API 접근성',
-        status: response.ok ? 'pass' : 'fail',
+        status: response.ok ? 'pass' as const : 'fail' as const,
         message: response.ok
           ? 'GitHub API에 성공적으로 접근 가능'
           : 'GitHub API 접근 실패',
@@ -91,7 +91,7 @@ export class WordPressCompatibilityChecker {
     } catch (error) {
       return {
         name: 'GitHub API 접근성',
-        status: 'fail',
+        status: 'fail' as const,
         message: 'GitHub API 접근 실패',
         details: [(error as Error).message],
       };
@@ -119,7 +119,7 @@ export class WordPressCompatibilityChecker {
 
     return {
       name: 'WordPress 파일 구조 호환성',
-      status: 'pass',
+      status: 'pass' as const,
       message: '모든 필수 WordPress 파일 구조가 지원됩니다',
       details,
     };
@@ -140,7 +140,7 @@ export class WordPressCompatibilityChecker {
 
     return {
       name: '데이터베이스 호환성',
-      status: 'warn',
+      status: 'warn' as const,
       message: 'SQLite + JSON 하이브리드는 대부분의 WordPress 쿼리를 지원합니다',
       details,
     };
@@ -161,7 +161,7 @@ export class WordPressCompatibilityChecker {
 
     return {
       name: '플러그인/테마 호환성',
-      status: 'warn',
+      status: 'warn' as const,
       message: '대부분의 인기 플러그인/테마가 작동합니다',
       details,
     };
@@ -182,7 +182,7 @@ export class WordPressCompatibilityChecker {
 
     return {
       name: '미디어 파일 처리',
-      status: 'pass',
+      status: 'pass' as const,
       message: '모든 일반적인 미디어 파일 형식을 지원합니다',
       details,
     };
@@ -204,7 +204,7 @@ export class WordPressCompatibilityChecker {
 
     return {
       name: '마이그레이션 프로세스',
-      status: 'pass',
+      status: 'pass' as const,
       message: '완벽한 마이그레이션 도구 제공',
       details,
     };
@@ -223,7 +223,7 @@ export class WordPressCompatibilityChecker {
 
     return {
       name: 'SSL/HTTPS 지원',
-      status: 'pass',
+      status: 'pass' as const,
       message: 'Cloudflare SSL이 자동으로 설정됩니다',
       details,
     };
@@ -244,7 +244,7 @@ export class WordPressCompatibilityChecker {
 
     return {
       name: '캐싱 계층 호환성',
-      status: 'pass',
+      status: 'pass' as const,
       message: '다층 캐싱으로 최적의 성능 제공',
       details,
     };
@@ -265,7 +265,7 @@ export class WordPressCompatibilityChecker {
 
     return {
       name: '백업/복원',
-      status: 'pass',
+      status: 'pass' as const,
       message: 'GitHub Releases 기반의 자동 백업 시스템',
       details,
     };
@@ -286,7 +286,7 @@ export class WordPressCompatibilityChecker {
 
     return {
       name: 'DNS 설정',
-      status: 'pass',
+      status: 'pass' as const,
       message: '완벽한 DNS 관리 지원',
       details,
     };

@@ -89,7 +89,7 @@ const queryErrorMessage = errorParam ? (errorMessages[errorParam] || '로그인 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const result = await res.json();
+      const result = (await res.json()) as any;
       if (result.success) {
         window.location.href = '/dashboard';
         return;

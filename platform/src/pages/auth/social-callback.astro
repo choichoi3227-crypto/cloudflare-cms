@@ -13,7 +13,7 @@ const returnedState = Astro.url.searchParams.get('state');
 if (!code) return Astro.redirect('/auth/login?error=no_code');
 
 const pending = parseOAuthStateCookie(Astro.request.headers.get('cookie'));
-if (!pending || !returnedState || pending.state !== returnedState || !pending.provider || pending.provider === 'cloudflare') {
+if (!pending || !returnedState || pending.state !== returnedState || !pending.provider) {
   return new Response(null, {
     status: 302,
     headers: { Location: '/auth/login?error=auth_failed', 'Set-Cookie': clearOAuthStateCookie() },

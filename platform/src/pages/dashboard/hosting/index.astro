@@ -7,7 +7,7 @@ if (!session) return Astro.redirect('/auth/login');
 Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
 const showNotFoundError = Astro.url.searchParams.get('error') === 'not_found';
 const sitesResult = await apiClient.get<Array<{ id: string; site_name: string; domain: string; status: string; created_at: number }>>('/api/sites', Astro.request.headers.get('cookie'));
-const sites = sitesResult.success ? sitesResult.data : [];
+const sites = sitesResult.success ? (sitesResult.data ?? []) : [];
 const metrics = [
   ['PHP-WASM', '8.3', '공식 런타임 전면 적용'],
   ['평균 레이턴시', '18ms', 'Worker edge cache 기준'],

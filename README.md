@@ -12,11 +12,11 @@
 
 - **100% WordPress**: 완전한 WordPress 호스팅, 커스텀 CMS 없음
 - **PHP-WASM**: 서버 없이 Cloudflare Workers에서 PHP 실행
-- **GitHub Releases**: 무료 스토리지 (토큰 불필요)
+- **GitHub Releases**: 관리자 계정/조직의 Release 저장소와 기존 저장 로직 연동
 - **하이브리드 DB**: SQLite (기본) + JSON (폴백)
-- **무차별 플랜**: 모든 플랜 동일 기능, 호스팅 단위 정책
+- **유료 호스팅 단위 플랜**: 라이트/스탠다드/스마트/인텔리전트 월 결제
 - **자동 캐싱**: WP-Rocket + Cloudflare 통합
-- **무제한**: 스토리지, 트래픽, 도메인, 사이트 무제한
+- **공통 무제한 정책**: 트래픽, 스토리지, DB, 기본 플러그인, WAF/DDoS 방어 제공
 
 ---
 
@@ -24,7 +24,7 @@
 
 - **Node.js**: 18.x 이상
 - **pnpm**: 9.x 이상  
-- **Cloudflare 계정**: 무료 플랜 가능
+- **Cloudflare 계정**: Global API Key 필요
 - **GitHub 계정**: 스토리지용 저장소
 
 ---
@@ -43,8 +43,12 @@ pnpm install
 
 **.env.production:**
 ```
-OAUTH_CLIENT_ID=your-cloudflare-oauth-id
-OAUTH_CLIENT_SECRET=your-cloudflare-oauth-secret
+GOOGLE_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
+GITHUB_CLIENT_ID=your-github-oauth-client-id
+GITHUB_CLIENT_SECRET=your-github-oauth-client-secret
+PAYPAL_CLIENT_ID=your-paypal-client-id
+PAYPAL_CLIENT_SECRET=your-paypal-client-secret
 GITHUB_OWNER=your-github-org
 GITHUB_REPO=wordpress-releases
 ```
@@ -174,7 +178,8 @@ pnpm typecheck
 ## 🔐 보안
 
 ### 인증
-- Cloudflare OAuth 2.0 기반
+- 이메일/비밀번호 및 Google/GitHub 소셜 로그인 기반
+- 가입 시 Cloudflare Global API Key 등록 및 이메일 인증 필수
 - HttpOnly 쿠키 사용
 - CSRF 토큰 검증
 

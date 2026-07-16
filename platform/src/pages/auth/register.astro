@@ -109,7 +109,7 @@ const prefilledReferral = Astro.url.searchParams.get('ref') || '';
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const result = await res.json();
+      const result = (await res.json()) as any;
       if (result.success) {
         form.classList.add('hidden');
         loginLink.classList.add('hidden');

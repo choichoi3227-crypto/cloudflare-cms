@@ -8,7 +8,7 @@ if (!session) return Astro.redirect('/auth/login');
 if (session.status === 'pending_cf_key') return Astro.redirect('/auth/complete-signup');
 Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
 const sitesResult = await apiClient.get<Array<{ id: string; site_name: string; domain: string; status: string; created_at: number }>>('/api/sites', Astro.request.headers.get('cookie'));
-const sites = sitesResult.success ? sitesResult.data : [];
+const sites = sitesResult.success ? (sitesResult.data ?? []) : [];
 const statusBadgeClass: Record<string, string> = { active: 'badge-success', provisioning: 'badge-warning', suspended: 'badge-caution', deleted: 'badge-danger' };
 const statusLabel: Record<string, string> = { active: '활성', provisioning: '준비 중', suspended: '일시 중지', deleted: '삭제됨' };
 ---

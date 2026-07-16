@@ -181,7 +181,7 @@ export class AnnouncementManager {
         throw new Error(`Failed to fetch announcements: ${response.statusText}`);
       }
 
-      const releases = await response.json();
+      const releases = (await response.json()) as any[];
       return releases.map((release: any) => this.releaseToAnnouncement(release));
     } catch (error) {
       console.error('Error fetching announcements:', error);

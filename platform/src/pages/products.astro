@@ -1,0 +1,53 @@
+---
+import PublicLayout from '../layouts/PublicLayout.astro';
+import { PLAN_DEFINITIONS, COMMON_PLAN_FEATURES } from '../lib/plan-policy';
+---
+<PublicLayout title="CloudPress 유료 호스팅 플랜">
+  <main class="min-h-screen bg-surface-950 text-white px-6 py-16">
+    <section class="max-w-6xl mx-auto text-center mb-12">
+      <p class="text-brand-400 font-semibold mb-3">호스팅 단위 월 결제</p>
+      <h1 class="text-4xl md:text-5xl font-bold mb-4">무료 호스팅 없이, 모든 사이트를 안정적인 유료 플랜으로 운영합니다.</h1>
+      <p class="text-surface-400 max-w-3xl mx-auto">모든 플랜은 트래픽, 스토리지, DB, 기본 플러그인, WAF/DDoS 방어를 제한하지 않습니다. 차이는 워커 로드밸런싱 자동화 수준뿐입니다.</p>
+    </section>
+
+    <section class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+      {PLAN_DEFINITIONS.map((plan) => (
+        <article class="glass rounded-2xl p-6 border border-surface-800 flex flex-col">
+          <h2 class="text-xl font-bold mb-2">{plan.name}</h2>
+          <p class="text-3xl font-extrabold mb-1">₩{plan.monthlyKRW.toLocaleString('ko-KR')}<span class="text-sm text-surface-500 font-medium">/월</span></p>
+          <p class="text-xs text-surface-500 mb-4">호스팅 1개 단위 결제 · PayPal</p>
+          <div class="rounded-xl bg-surface-900/80 p-4 mb-5">
+            <p class="text-sm font-semibold text-brand-300 mb-1">워커 로드밸런싱</p>
+            <p class="text-sm text-surface-400">{plan.loadBalancingDescription}</p>
+          </div>
+          <ul class="space-y-2 mb-6 flex-1">
+            {COMMON_PLAN_FEATURES.map((feature) => <li class="text-sm text-surface-300">✓ {feature}</li>)}
+          </ul>
+          <button class="btn-primary w-full checkout-btn" data-plan={plan.slug} data-product={`cp-${plan.slug}-monthly`}>결제하기</button>
+        </article>
+      ))}
+    </section>
+  </main>
+</PublicLayout>
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.checkout-btn').forEach((button) => {
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      button.textContent = 'PayPal 주문 생성 중...';
+      const billingNumber = `bill_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`;
+      const response = await fetch('/api/payments?action=create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planType: button.dataset.plan, productId: button.dataset.product, billingNumber }),
+      });
+      const result = (await response.json()) as any;
+      if (result.success) {
+        window.location.href = result.data.approvalUrl || `/product/${button.dataset.plan}/${button.dataset.product}/${billingNumber}`;
+      } else {
+        alert(result.error?.message || '결제 페이지 생성에 실패했습니다.');
+        button.disabled = false;
+        button.textContent = '결제하기';
+      }
+    });
+  });
+</script>

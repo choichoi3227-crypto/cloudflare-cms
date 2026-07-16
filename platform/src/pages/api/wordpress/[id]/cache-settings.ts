@@ -15,7 +15,7 @@ export const POST: APIRoute = async (context) => {
       });
     }
 
-    const data = await context.request.json();
+    const data = (await context.request.json()) as any;
     const wpManager = new WordPressManager(id as string, null);
     
     // Update cache settings

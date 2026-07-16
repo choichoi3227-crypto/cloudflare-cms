@@ -233,6 +233,7 @@ const wpSite = {
 </DashboardLayout>
 
 <script>
+  const siteId = window.location.pathname.split('/').pop() || '';
   // Admin form submission
   const adminForm = document.getElementById('admin-form') as HTMLFormElement | null;
   const adminMessage = document.getElementById('admin-message') as HTMLDivElement | null;
@@ -243,7 +244,7 @@ const wpSite = {
     
     const formData = new FormData(adminForm);
     try {
-      const response = await fetch(`/api/wordpress/${id}/admin`, {
+      const response = await fetch(`/api/wordpress/${siteId}/admin`, {
         method: 'POST',
         body: JSON.stringify(Object.fromEntries(formData)),
         headers: { 'Content-Type': 'application/json' },
@@ -283,7 +284,7 @@ const wpSite = {
     });
     
     try {
-      const response = await fetch(`/api/wordpress/${id}/cache-settings`, {
+      const response = await fetch(`/api/wordpress/${siteId}/cache-settings`, {
         method: 'POST',
         body: JSON.stringify(settings),
         headers: { 'Content-Type': 'application/json' },
@@ -363,7 +364,7 @@ const wpSite = {
         }
       });
       
-      xhr.open('POST', `/api/wordpress/${id}/migrate`);
+      xhr.open('POST', `/api/wordpress/${siteId}/migrate`);
       xhr.send(formData);
     } catch (error) {
       uploadProgress?.classList.add('hidden');
@@ -376,7 +377,7 @@ const wpSite = {
   // Cache purge button
   document.getElementById('cache-purge-btn')?.addEventListener('click', async () => {
     try {
-      await fetch(`/api/wordpress/${id}/purge-cache`, { method: 'POST' });
+      await fetch(`/api/wordpress/${siteId}/purge-cache`, { method: 'POST' });
       alert('캐시가 비워졌습니다.');
     } catch (error) {
       alert('캐시 비우기 실패');
@@ -388,7 +389,7 @@ const wpSite = {
     if (!confirm('정말로 이 WordPress 인스턴스를 삭제하시겠습니까?')) return;
     
     try {
-      const response = await fetch(`/api/wordpress/${id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/wordpress/${siteId}`, { method: 'DELETE' });
       if (response.ok) {
         window.location.href = '/dashboard/hosting';
       }

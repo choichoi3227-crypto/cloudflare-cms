@@ -1,14 +1,14 @@
 // workers/platform-api/src/router.ts
 import type { Env } from './types';
-import { handleAuthCallback, handleRegister, handleVerifyEmail, handleResendVerification, handleLogin, handleSocialCallback, handleCompleteCfKeySetup } from './routes/auth';
+import { handleRegister, handleVerifyEmail, handleResendVerification, handleLogin, handleSocialCallback, handleCompleteCfKeySetup } from './routes/auth';
 import { handleListSites, handleCreateSite, handleGetSite, handleDeleteSite } from './routes/sites';
-import { handleAdminOverview, handleAdminListUsers, handleAdminListSites, handleAdminListActivity } from './routes/admin';
+import { handleAdminOverview, handleAdminListUsers, handleAdminListSites, handleAdminListActivity, handleAdminSaveSettings, handleAdminSaveDesign } from './routes/admin';
+import { handleCreatePayment, handleCapturePayment, handlePaymentStatus } from './routes/payments';
 import { corsHeaders, handleCors } from './middleware/cors';
 import { rateLimit } from './middleware/rate-limit';
 
 function matchRoute(pathname: string, method: string) {
   const routes: Array<{ method:string; pattern:string; handler:(req:Request,env:Env,params:Record<string,string>)=>Promise<Response> }> = [
-    { method:'POST', pattern:'/api/auth/callback', handler:async(req,env) => handleAuthCallback(req,env) },
     { method:'POST', pattern:'/api/auth/register', handler:async(req,env) => handleRegister(req,env) },
     { method:'POST', pattern:'/api/auth/verify-email', handler:async(req,env) => handleVerifyEmail(req,env) },
     { method:'POST', pattern:'/api/auth/resend-verification', handler:async(req,env) => handleResendVerification(req,env) },
@@ -19,10 +19,15 @@ function matchRoute(pathname: string, method: string) {
     { method:'POST', pattern:'/api/sites', handler:async(req,env) => handleCreateSite(req,env) },
     { method:'GET', pattern:'/api/sites/:id', handler:async(req,env,p) => handleGetSite(req,env,p.id) },
     { method:'DELETE', pattern:'/api/sites/:id', handler:async(req,env,p) => handleDeleteSite(req,env,p.id) },
+    { method:'POST', pattern:'/api/payments/create', handler:async(req,env) => handleCreatePayment(req,env) },
+    { method:'POST', pattern:'/api/payments/capture', handler:async(req,env) => handleCapturePayment(req,env) },
+    { method:'GET', pattern:'/api/payments/status', handler:async(req,env) => handlePaymentStatus(req,env) },
     { method:'GET', pattern:'/api/admin/overview', handler:async(req,env) => handleAdminOverview(req,env) },
     { method:'GET', pattern:'/api/admin/users', handler:async(req,env) => handleAdminListUsers(req,env) },
     { method:'GET', pattern:'/api/admin/sites', handler:async(req,env) => handleAdminListSites(req,env) },
     { method:'GET', pattern:'/api/admin/activity', handler:async(req,env) => handleAdminListActivity(req,env) },
+    { method:'POST', pattern:'/api/admin/settings', handler:async(req,env) => handleAdminSaveSettings(req,env) },
+    { method:'POST', pattern:'/api/admin/design', handler:async(req,env) => handleAdminSaveDesign(req,env) },
   ];
   for (const route of routes) {
     if (route.method !== method) continue;

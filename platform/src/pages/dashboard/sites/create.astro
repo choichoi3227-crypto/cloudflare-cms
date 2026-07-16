@@ -8,6 +8,9 @@ Astro.locals.user = { id: session.userId, email: session.email, username: sessio
 ---
 <DashboardLayout title="사이트 만들기" activeNav="sites">
   <div class="mb-8"><a href="/dashboard" class="text-sm text-surface-500 hover:text-surface-300 mb-2 inline-flex items-center gap-1"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="15 18 9 12 15 6"/></svg>대시보드</a><h1 class="text-2xl font-bold text-white">새 사이트 만들기</h1></div>
+  <div class="glass rounded-xl p-5 max-w-lg mb-5 text-sm text-surface-300">
+    사이트 생성은 결제 완료된 호스팅 1개를 사용합니다. 결제 내역이 없으면 <a class="text-brand-400 font-semibold" href="/products">/products에서 플랜 결제</a>를 먼저 진행해주세요.
+  </div>
   <form id="create-site-form" class="glass rounded-xl p-8 max-w-lg">
     <div class="space-y-6">
       <div><label for="siteName" class="block text-sm font-medium text-surface-300 mb-2">사이트 이름 <span class="text-brand-500">*</span></label><input type="text" id="siteName" name="siteName" required minlength="2" maxlength="50" placeholder="예: 내 블로그" class="input-field" autocomplete="off"/></div>
@@ -26,8 +29,9 @@ Astro.locals.user = { id: session.userId, email: session.email, username: sessio
       const domain = (document.getElementById('domain') as HTMLInputElement).value.trim();
       try {
         const r = await fetch('/api/sites', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({site_name:siteName,domain}) });
-        const result = await r.json();
+        const result = (await r.json()) as any;
         if (result.success) { window.location.href = '/dashboard'; }
+        else if (r.status === 402 || result.error?.code === 'PAYMENT_REQUIRED') { window.location.href = '/products'; }
         else { errorEl.textContent = result.error?.message || '사이트 생성에 실패했습니다.'; errorEl.classList.remove('hidden'); submitBtn.disabled = false; submitBtn.textContent = '사이트 만들기'; }
       } catch { errorEl.textContent = '네트워크 오류가 발생했습니다.'; errorEl.classList.remove('hidden'); submitBtn.disabled = false; submitBtn.textContent = '사이트 만들기'; }
     });

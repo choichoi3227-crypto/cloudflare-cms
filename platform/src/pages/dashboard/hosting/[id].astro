@@ -99,7 +99,7 @@ const statusInfo = statusLabels[site.status] || statusLabels.provisioning;
     errorEl?.classList.add('hidden');
     try {
       const r = await fetch(`/api/sites/${siteId}`, { method: 'DELETE' });
-      const result = await r.json();
+      const result = (await r.json()) as any;
       if (result.success) {
         window.location.href = '/dashboard/sites';
       } else {

@@ -48,7 +48,7 @@ export const POST: APIRoute = async (context) => {
       });
     }
 
-    const data = await context.request.json();
+    const data = (await context.request.json()) as any;
     const planManager = new PlanPolicyManager(id as string);
     
     // All plans are identical, so upgrade is a no-op

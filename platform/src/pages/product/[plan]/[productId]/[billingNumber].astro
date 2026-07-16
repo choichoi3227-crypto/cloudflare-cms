@@ -1,0 +1,53 @@
+---
+import PublicLayout from '../../../../layouts/PublicLayout.astro';
+import { PLAN_DEFINITIONS } from '../../../../lib/plan-policy';
+const { plan, productId, billingNumber } = Astro.params;
+const definition = PLAN_DEFINITIONS.find((item) => item.slug === plan);
+if (!definition || !productId || !billingNumber) return Astro.redirect('/products');
+---
+<PublicLayout title={`${definition.name} 결제`}>
+  <main class="min-h-screen bg-surface-950 text-white px-6 py-16">
+    <section class="max-w-2xl mx-auto glass rounded-2xl p-8">
+      <p class="text-brand-400 font-semibold mb-2">PayPal 결제</p>
+      <h1 class="text-3xl font-bold mb-4">{definition.name}</h1>
+      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-8">
+        <div class="bg-surface-900 rounded-xl p-4"><dt class="text-surface-500">상품명</dt><dd class="font-semibold">{productId}</dd></div>
+        <div class="bg-surface-900 rounded-xl p-4"><dt class="text-surface-500">청구번호</dt><dd class="font-semibold">{billingNumber}</dd></div>
+        <div class="bg-surface-900 rounded-xl p-4"><dt class="text-surface-500">결제 단위</dt><dd class="font-semibold">호스팅 1개 / 월</dd></div>
+        <div class="bg-surface-900 rounded-xl p-4"><dt class="text-surface-500">금액</dt><dd class="font-semibold">₩{definition.monthlyKRW.toLocaleString('ko-KR')} / ${definition.monthlyUSD.toFixed(2)}</dd></div>
+      </dl>
+      <button id="paypal-btn" class="btn-primary w-full">PayPal 결제 진행</button>
+      <p class="text-xs text-surface-500 mt-4">결제가 완료되면 “결제 완료!” 팝업에서 호스팅 확인하기 버튼을 표시합니다. 실패 시 이 결제 페이지에 머무릅니다.</p>
+    </section>
+  </main>
+  <div id="payment-modal" class="hidden fixed inset-0 bg-black/70 items-center justify-center p-6">
+    <div class="bg-white text-surface-900 rounded-2xl p-8 max-w-sm w-full text-center">
+      <h2 id="modal-title" class="text-2xl font-bold mb-4"></h2>
+      <button id="modal-action" class="bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-5 rounded-lg"></button>
+    </div>
+  </div>
+</PublicLayout>
+<script define:vars={{ planSlug: definition.slug, productId, billingNumber }}>
+  const button = document.getElementById('paypal-btn');
+  const modal = document.getElementById('payment-modal');
+  const title = document.getElementById('modal-title');
+  const action = document.getElementById('modal-action');
+  button?.addEventListener('click', async () => {
+    button.setAttribute('disabled', 'true');
+    button.textContent = 'PayPal 주문 생성 중...';
+    const response = await fetch('/api/payments?action=create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planType: planSlug, productId, billingNumber }),
+    });
+    const result = await response.json();
+    if (result.success && result.data.approvalUrl) window.location.href = result.data.approvalUrl;
+    else {
+      title.textContent = '결제 실패';
+      action.textContent = '확인하기';
+      action.onclick = () => modal?.classList.add('hidden');
+      modal?.classList.remove('hidden'); modal?.classList.add('flex');
+      button.removeAttribute('disabled'); button.textContent = 'PayPal 결제 진행';
+    }
+  });
+</script>

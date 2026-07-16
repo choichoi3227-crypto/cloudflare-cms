@@ -72,9 +72,9 @@ const prefilledReferral = Astro.url.searchParams.get('ref') || '';
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const result = await res.json();
+      const result = (await res.json()) as any;
       if (result.success) {
-        window.location.href = '/dashboard';
+        window.location.href = result.data?.user?.status === 'active' ? '/dashboard' : '/auth/verify-email';
         return;
       }
       if (result.error?.details) {

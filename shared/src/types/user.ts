@@ -18,7 +18,7 @@ export interface User {
 // 'active': 정상, 'suspended'/'deleted': 관리 상태
 export type UserStatus = 'pending_verification' | 'pending_cf_key' | 'active' | 'suspended' | 'deleted';
 
-export type AuthProvider = 'email' | 'google' | 'github' | 'cloudflare_oauth';
+export type AuthProvider = 'email' | 'google' | 'github';
 
 export interface SocialAccount {
   id: string;

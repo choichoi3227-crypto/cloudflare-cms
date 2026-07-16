@@ -41,6 +41,10 @@ export class UserRepository {
     const row = await this.db.prepare(`SELECT ${PUBLIC_USER_COLUMNS},password_hash,cf_global_api_key_encrypted FROM users WHERE email=?`).bind(email).first();
     return row ? (toUser(row) as UserWithSecrets) : null;
   }
+  async findByIdWithSecrets(id: string): Promise<UserWithSecrets | null> {
+    const row = await this.db.prepare(`SELECT ${PUBLIC_USER_COLUMNS},password_hash,cf_global_api_key_encrypted FROM users WHERE id=?`).bind(id).first();
+    return row ? (toUser(row) as UserWithSecrets) : null;
+  }
   async findAll(limit = 50, offset = 0): Promise<User[]> {
     const r = await this.db.prepare(`SELECT ${PUBLIC_USER_COLUMNS} FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`).bind(limit, offset).all();
     return r.results.map(toUser);
@@ -48,20 +52,6 @@ export class UserRepository {
   async count(): Promise<number> {
     const row = await this.db.prepare('SELECT COUNT(*) as c FROM users').first<{ c: number }>();
     return row?.c ?? 0;
-  }
-
-  /** Cloudflare OAuth 가입 (기존 방식) — 이메일 인증이 이미 완료된 것으로 간주합니다. */
-  async create(data: { email:string; username:string; avatar_url:string|null }): Promise<User> {
-    const id = generateId('usr'); const ts = now();
-    await this.db.prepare(
-      `INSERT INTO users (id,email,username,avatar_url,status,auth_provider,email_verified,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?)`
-    ).bind(id, data.email, data.username, data.avatar_url, 'active', 'cloudflare_oauth', 1, ts, ts).run();
-    return {
-      id, email: data.email, username: data.username, avatar_url: data.avatar_url, status: 'active',
-      auth_provider: 'cloudflare_oauth', email_verified: true, referral_code: null, referred_by_code: null,
-      cf_account_email: null, created_at: ts, updated_at: ts,
-    };
   }
 
   /** 이메일/비밀번호 회원가입. 이메일 인증 전까지는 status='pending_verification'. */
@@ -92,32 +82,31 @@ export class UserRepository {
   }
 
   /**
-   * 소셜(Google/GitHub) 최초 가입. 이메일은 소셜 제공자가 이미 검증했으므로
-   * email_verified=1로 생성하되, Cloudflare Global API 키는 아직 없으므로
-   * status='pending_cf_key'로 시작합니다 (대시보드 접근은 가능하되, 사이트 생성 등은 차단).
+   * 소셜(Google/GitHub) 최초 가입. 요구사항상 소셜 가입도 서비스 이메일 인증을
+   * 완료해야 하므로 email_verified=0으로 시작합니다.
    */
   async createFromSocial(data: { email: string; username: string; avatarUrl: string | null; authProvider: 'google' | 'github' }): Promise<User> {
     const id = generateId('usr'); const ts = now();
     await this.db.prepare(
       `INSERT INTO users (id,email,username,avatar_url,status,auth_provider,email_verified,created_at,updated_at)
        VALUES (?,?,?,?,?,?,?,?,?)`
-    ).bind(id, data.email, data.username, data.avatarUrl, 'pending_cf_key', data.authProvider, 1, ts, ts).run();
+    ).bind(id, data.email, data.username, data.avatarUrl, 'pending_cf_key', data.authProvider, 0, ts, ts).run();
     return {
       id, email: data.email, username: data.username, avatar_url: data.avatarUrl, status: 'pending_cf_key',
-      auth_provider: data.authProvider, email_verified: true, referral_code: null, referred_by_code: null,
+      auth_provider: data.authProvider, email_verified: false, referral_code: null, referred_by_code: null,
       cf_account_email: null, created_at: ts, updated_at: ts,
     };
   }
 
-  /** 소셜 가입 사용자가 CF Global API 키 입력을 완료하면 호출합니다 (status: pending_cf_key -> active). */
-  async completeCfKeySetup(userId: string, data: { cfAccountEmail: string; cfGlobalApiKeyEncrypted: string; referralCode: string; referredByCode: string | null }): Promise<void> {
+  /** 소셜 가입 사용자가 CF Global API 키 입력을 완료하면 호출합니다. 이메일 인증 전이면 pending_verification을 유지합니다. */
+  async completeCfKeySetup(userId: string, data: { cfAccountEmail: string; cfGlobalApiKeyEncrypted: string; referralCode: string; referredByCode: string | null; emailVerified: boolean }): Promise<void> {
     await this.db.prepare(
-      `UPDATE users SET status='active', cf_account_email=?, cf_global_api_key_encrypted=?, referral_code=?, referred_by_code=?, updated_at=? WHERE id=?`
-    ).bind(data.cfAccountEmail, data.cfGlobalApiKeyEncrypted, data.referralCode, data.referredByCode, now(), userId).run();
+      `UPDATE users SET status=?, cf_account_email=?, cf_global_api_key_encrypted=?, referral_code=?, referred_by_code=?, updated_at=? WHERE id=?`
+    ).bind(data.emailVerified ? 'active' : 'pending_verification', data.cfAccountEmail, data.cfGlobalApiKeyEncrypted, data.referralCode, data.referredByCode, now(), userId).run();
   }
 
   async markEmailVerified(userId: string): Promise<void> {
-    await this.db.prepare(`UPDATE users SET status='active', email_verified=1, updated_at=? WHERE id=?`).bind(now(), userId).run();
+    await this.db.prepare(`UPDATE users SET status=CASE WHEN cf_global_api_key_encrypted IS NULL THEN 'pending_cf_key' ELSE 'active' END, email_verified=1, updated_at=? WHERE id=?`).bind(now(), userId).run();
   }
 }
 

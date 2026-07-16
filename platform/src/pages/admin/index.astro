@@ -11,7 +11,7 @@ if (!isAdminSession(session)) return Astro.redirect('/dashboard');
 Astro.locals.user = { id: session.userId, email: session.email, username: session.username, avatar_url: session.avatarUrl };
 
 const overviewResult = await apiClient.get<{ userCount: number; siteCount: number; activeSites: number; provisioningSites: number }>('/api/admin/overview', Astro.request.headers.get('cookie'));
-const overview = overviewResult.success ? overviewResult.data : { userCount: 0, siteCount: 0, activeSites: 0, provisioningSites: 0 };
+const overview = overviewResult.success ? (overviewResult.data ?? { userCount: 0, siteCount: 0, activeSites: 0, provisioningSites: 0 }) : { userCount: 0, siteCount: 0, activeSites: 0, provisioningSites: 0 };
 
 const cards = [
   { label: '전체 사용자', value: overview.userCount, href: '/admin/users' },

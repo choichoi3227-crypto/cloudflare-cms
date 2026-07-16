@@ -2,9 +2,11 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { UserRepository } from '../repositories/user.repository';
 import { SocialAccountRepository } from '../repositories/social-account.repository';
+import { EmailVerificationRepository } from '../repositories/email-verification.repository';
 import { generateUniqueReferralCode } from './auth.service';
+import { EmailService } from './email.service';
 import { verifyCloudflareGlobalApiKey } from './cf-key-verify.service';
-import { encryptApiKey } from '../utils/crypto';
+import { encryptApiKey, generateVerificationToken, hashToken } from '../utils/crypto';
 import { ValidationError, ConflictError } from '../utils/errors';
 import { isEmail } from '@shared/utils/validation';
 import type { User } from '@shared/types/user';
@@ -12,15 +14,34 @@ import type { User } from '@shared/types/user';
 export interface SocialAuthServiceDeps {
   db: D1Database;
   appSecret: string;
+  resendApiKey: string;
+  resendFromEmail: string;
+  publicSiteUrl: string;
 }
 
 export class SocialAuthService {
   private userRepo: UserRepository;
   private socialRepo: SocialAccountRepository;
+  private verificationRepo: EmailVerificationRepository;
+  private emailService: EmailService;
 
   constructor(private deps: SocialAuthServiceDeps) {
     this.userRepo = new UserRepository(deps.db);
     this.socialRepo = new SocialAccountRepository(deps.db);
+    this.verificationRepo = new EmailVerificationRepository(deps.db);
+    this.emailService = new EmailService({ apiKey: deps.resendApiKey, fromEmail: deps.resendFromEmail });
+  }
+
+  private async sendVerificationEmail(user: User): Promise<void> {
+    await this.verificationRepo.invalidateAllForUser(user.id);
+    const token = generateVerificationToken();
+    const tokenHash = await hashToken(token);
+    await this.verificationRepo.create(user.id, tokenHash);
+    await this.emailService.sendVerificationEmail({
+      to: user.email,
+      username: user.username,
+      verifyUrl: `${this.deps.publicSiteUrl}/auth/verify-email?token=${token}`,
+    });
   }
 
   /**
@@ -73,6 +94,7 @@ export class SocialAuthService {
       refreshToken: params.refreshToken,
       expiresAt: params.expiresAt,
     });
+    await this.sendVerificationEmail(user);
     return { user };
   }
 
@@ -111,7 +133,7 @@ export class SocialAuthService {
     const cfGlobalApiKeyEncrypted = await encryptApiKey(input.cfGlobalApiKey, this.deps.appSecret);
     const referralCode = await generateUniqueReferralCode(this.userRepo);
 
-    await this.userRepo.completeCfKeySetup(userId, { cfAccountEmail: input.cfAccountEmail, cfGlobalApiKeyEncrypted, referralCode, referredByCode });
+    await this.userRepo.completeCfKeySetup(userId, { cfAccountEmail: input.cfAccountEmail, cfGlobalApiKeyEncrypted, referralCode, referredByCode, emailVerified: user.email_verified });
     const updatedUser = await this.userRepo.findById(userId);
     if (!updatedUser) throw new ConflictError('사용자를 찾을 수 없습니다.');
     return { user: updatedUser };

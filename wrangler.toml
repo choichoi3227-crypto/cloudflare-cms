@@ -1,4 +1,4 @@
-name = "cloudpress-wordpress-hosting"
+name = "cloudflare-cms"
 main = "workers/cms-site/src/index.ts"
 compatibility_date = "2026-07-12"
 compatibility_flags = ["nodejs_compat"]
